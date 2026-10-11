@@ -46,7 +46,13 @@ public struct PricingCatalog: Sendable {
         threshold = catalog.longContextThreshold; models = catalog.models
     }
     public static func load() throws -> PricingCatalog {
-        guard let url = Bundle.module.url(forResource: "pricing", withExtension: "json") else { throw PricingError.missingCatalog }
+        let url: URL?
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            url = Bundle.main.resourceURL?.appendingPathComponent("CodexCost_CostCore.bundle/pricing.json")
+        } else {
+            url = Bundle.module.url(forResource: "pricing", withExtension: "json")
+        }
+        guard let url, FileManager.default.fileExists(atPath: url.path) else { throw PricingError.missingCatalog }
         return try PricingCatalog(data: Data(contentsOf: url))
     }
     public func cost(for event: UsageEvent) -> CostResult {

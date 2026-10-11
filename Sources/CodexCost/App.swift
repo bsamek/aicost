@@ -1,0 +1,64 @@
+import AppKit
+import SwiftUI
+import Combine
+import CostCore
+
+@main
+@MainActor struct CodexCostApp {
+    static func main() {
+        if CommandLine.arguments.contains("--report") {
+            do { try CostReport.printReport() } catch {
+                FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)); exit(1)
+            }
+            return
+        }
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.setActivationPolicy(.accessory)
+        app.delegate = delegate
+        withExtendedLifetime(delegate) { app.run() }
+    }
+}
+
+@MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let model = AppModel()
+    private var item: NSStatusItem!
+    private let popover = NSPopover()
+    private var timer: Timer?
+    private var observation: AnyCancellable?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = item.button {
+            button.image = NSImage(systemSymbolName: "dollarsign.circle", accessibilityDescription: "Codex Cost")
+            button.image?.isTemplate = true
+            button.imagePosition = .imageLeading
+            button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+            button.target = self; button.action = #selector(togglePanel)
+        }
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: CostPanel(model: model))
+        observation = model.objectWillChange.sink { [weak self] _ in
+            Task { @MainActor in self?.updateTitle() }
+        }
+        updateTitle()
+        Task { await model.refresh() }
+        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in await self?.model.refresh() }
+        }
+    }
+    private func updateTitle() {
+        let total = model.summary.map { dollars($0.today.total) } ?? (model.error == nil ? "…" : "!")
+        let incomplete = model.error != nil || model.diagnostics > 0 || (model.summary?.today.unpricedCount ?? 0) > 0
+        item.button?.title = " " + total + (incomplete ? "*" : "")
+        item.button?.toolTip = "Codex Cost — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
+    }
+    @objc private func togglePanel() {
+        if popover.isShown { popover.performClose(nil) }
+        else if let button = item.button {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
+        }
+    }
+    func applicationWillTerminate(_ notification: Notification) { timer?.invalidate() }
+}
