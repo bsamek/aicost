@@ -4,7 +4,7 @@ A small native macOS menu bar app that estimates what Brian's locally recorded C
 
 ## Interface
 
-The menu bar displays today's estimated total in USD. Clicking opens a compact popover with two sections: Today and This Month. Each section shows a total and a row per model with its estimated cost. Period boundaries use the Mac's local timezone; This Month means the current calendar month. Display the last successful refresh time and a Refresh action. Include Quit.
+The menu bar displays today's estimated total in USD. Clicking opens a small panel beneath the menu bar item with two sections: Today and This Month. Each section shows a total and a row per model with its estimated cost. Period boundaries use the Mac's local timezone; This Month means the current calendar month. Display the last successful refresh time and a Refresh action. Include Quit.
 
 No charts, subscription comparison, notifications, account login, API key, or launch-at-login setting in the first version.
 
@@ -26,7 +26,7 @@ Input counts include cached input. Charge ordinary input, cached input, separate
 
 Bundle a readable pricing table with official source URL and verification date. Use published Standard API rates as the explicit baseline, with long-context rates when a recorded request exceeds the documented threshold and the request input count is available. Show the baseline in the popover. Do not infer processing tier from the subscription or fabricate historical prices.
 
-Current rates are applied to all displayed usage. Unknown models are marked unpriced and excluded from the dollar total, with a visible coverage notice. Totals estimate model tokens only; cloud sessions absent from local logs and non-token tool charges are outside coverage. The popover includes a concise estimate note and a link to pricing. No network access is needed during ordinary operation.
+Current rates are applied to all displayed usage. Unknown models are marked unpriced and excluded from the dollar total, with a visible coverage notice. Totals estimate model tokens only; cloud sessions absent from local logs and non-token tool charges are outside coverage. The panel includes the line: "Estimated API token cost for Codex usage recorded on this Mac." Do not include a pricing link in the app. No network access is needed during ordinary operation.
 
 ## Validation and delivery
 
