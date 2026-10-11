@@ -31,3 +31,7 @@ Current rates are applied to all displayed usage. Unknown models are marked unpr
 ## Validation and delivery
 
 Use fixture-based tests for cumulative accounting, cached and reasoning tokens, pricing, model attribution, fork duplication, malformed records, and local day/month boundaries. Compile the app, run it against real local logs read-only, and verify displayed totals against an independent calculation. Deliver the .app in the workspace with source and build instructions; open it for a launch check. Installation outside the workspace is optional and requires a user request.
+
+## Approved visual simplification
+
+The menu bar shows only today’s price, with no icon or asterisk. The panel shows Today and This Month totals and priced model rows, with one 13-point font size, weight for hierarchy, and no scrolling, explanatory comments, or footer. Unpriced model details remain in the diagnostic report. Refresh remains automatic every 30 seconds.

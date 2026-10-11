@@ -30,9 +30,6 @@ import CostCore
     func applicationDidFinishLaunching(_ notification: Notification) {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
-            button.image = NSImage(systemSymbolName: "dollarsign.circle", accessibilityDescription: "Codex Cost")
-            button.image?.isTemplate = true
-            button.imagePosition = .imageLeading
             button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
             button.target = self; button.action = #selector(togglePanel)
         }
@@ -50,7 +47,7 @@ import CostCore
     private func updateTitle() {
         let total = model.summary.map { dollars($0.today.total) } ?? (model.error == nil ? "…" : "!")
         let incomplete = model.error != nil || model.diagnostics > 0 || (model.summary?.today.unpricedCount ?? 0) > 0
-        item.button?.title = " " + total + (incomplete ? "*" : "")
+        item.button?.title = total
         item.button?.toolTip = "Codex Cost — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
     }
     @objc private func togglePanel() {

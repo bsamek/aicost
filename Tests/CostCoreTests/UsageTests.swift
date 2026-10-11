@@ -4,6 +4,15 @@ import Testing
 
 // Removing cumulative deduplication, reset handling, or validation breaks these fixtures.
 struct UsageTests {
+    @Test func testInheritedMetadataDoesNotReplaceOwningThread() {
+        let result = SessionParser.parse(data: fixture([
+            meta("child", fork: "parent"), meta("parent"), context("gpt-6.1-sol"), usage(100)
+        ]), fileID: "f")
+        #expect(result.id == "child")
+        #expect(result.parent == "parent")
+        #expect(result.events.first?.sessionID == "child")
+    }
+
     @Test func testReplayedOlderSnapshotDoesNotResetBaseline() {
         let result = SessionParser.parse(data: fixture([
             meta("s"), usage(100), usage(150, second: 2, lastInput: 50),

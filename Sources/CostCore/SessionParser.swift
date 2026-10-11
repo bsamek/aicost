@@ -5,6 +5,7 @@ public enum SessionParser {
     public static func parse(data: Data, fileID: String) -> ParsedSession {
         var result = ParsedSession(id: fileID, parent: nil, created: nil, events: [], diagnostics: 0)
         var model: String?
+        var sawMetadata = false
         let fractional = ISO8601DateFormatter(); fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
         func date(_ raw: Any?) -> Date? {
@@ -27,6 +28,8 @@ public enum SessionParser {
             }
             switch record["type"] as? String {
             case "session_meta":
+                guard !sawMetadata else { continue }
+                sawMetadata = true
                 // Subagents sometimes share session_id; id identifies the actual thread.
                 result.id = payload["id"] as? String ?? payload["session_id"] as? String ?? fileID
                 result.parent = payload["forked_from_id"] as? String

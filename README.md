@@ -1,6 +1,6 @@
 # Codex Cost
 
-A native macOS menu bar app that shows what your locally recorded Codex token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds and has Refresh and Quit controls.
+A native macOS menu bar app that shows what your locally recorded Codex token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size.
 
 ## Build and run
 
@@ -27,7 +27,7 @@ Reads `~/.codex/sessions` and `~/.codex/archived_sessions` without modifying the
 
 Prices are bundled in `Sources/CostCore/Resources/pricing.json`, with their source and verification date. Current Standard rates are applied to all displayed usage; this is not an exact historical bill. Long-context rates use recorded request input counts. There is no pricing link in the app and no network activity.
 
-Models without published rates appear as Unpriced and are excluded from dollar totals. An asterisk in the menu bar indicates incomplete coverage or a refresh failure; open the panel for details. Nonzero cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
+Models without published rates are excluded from the panel and dollar totals. The diagnostic report retains their details. Nonzero cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
 
 ## Alternate log location
 
