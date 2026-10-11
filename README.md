@@ -21,6 +21,14 @@ scripts/swift-tool.sh test --disable-xctest
 
 `scripts/swift-tool.sh` uses native SwiftPM and a local copy of public package interfaces to accommodate this Mac's inconsistent Command Line Tools installation. System files remain untouched. A normal Swift 6 installation can also use `swift test --disable-xctest` and `swift build -c release`.
 
+GitHub Actions runs both `CostCoreTests` and `AppTests` on every push and pull request using macOS 15 and Xcode 16.4's bundled Swift 6 toolchain. CI uses the standard toolchain directly, without the local Command Line Tools workaround:
+
+```sh
+swift test --disable-xctest --enable-swift-testing
+```
+
+All tests use synthetic fixtures and temporary directories; no local Codex logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job.
+
 ## What the estimate includes
 
 Reads `~/.codex/sessions` and `~/.codex/archived_sessions` without modifying them. Input, cached input, and output are priced separately. Reasoning tokens are included in output. Cumulative counters, repeated snapshots, counter resets, archived copies, and identifiable inherited fork history are handled without summing duplicate usage. Days and calendar months use your Mac's timezone.
