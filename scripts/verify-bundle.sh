@@ -11,7 +11,7 @@ restore() {
 trap restore EXIT
 cp -R 'build/Codex Cost.app' "$test_dir/"
 if [ -d "$bundle" ]; then mv "$bundle" "$bundle.hidden"; fi
-CODEX_HOME="$test_dir/empty-home" "$test_dir/Codex Cost.app/Contents/MacOS/CodexCost" --report > "$test_dir/report.json"
+CODEX_HOME="$test_dir/empty-home" CLAUDE_CONFIG_DIR="$test_dir/empty-claude" "$test_dir/Codex Cost.app/Contents/MacOS/CodexCost" --report > "$test_dir/report.json"
 python3 - "$test_dir/report.json" <<'PY'
 import json,sys
 report=json.load(open(sys.argv[1]))

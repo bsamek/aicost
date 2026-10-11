@@ -46,6 +46,13 @@ struct CostPanel: View {
         case "gpt-6-luna": "GPT-6 Luna"
         case "gpt-5.6-sol": "GPT-5.6 Sol"
         case "gpt-5.6-terra": "GPT-5.6 Terra"
+        case "claude-opus-5": "Claude Opus 5"
+        case "claude-opus-4-8": "Claude Opus 4.8"
+        case "claude-fable-5": "Claude Fable 5"
+        case "claude-fable-5-1": "Claude Fable 5.1"
+        case "claude-sonnet-5-5": "Claude Sonnet 5.5"
+        case "claude-opus-5-5": "Claude Opus 5.5"
+        case "claude-haiku-5-5": "Claude Haiku 5.5"
         default: model
         }
     }

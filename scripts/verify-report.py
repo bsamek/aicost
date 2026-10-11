@@ -76,6 +76,49 @@ for meta, events, filename in sessions:
         periods = ['month'] + (['today'] if local.date() == now_local.date() else [])
         for period in periods:
             row = expected[period][model or 'Unknown model']; row[0] += cost; row[1] += int(issue)
+# Claude's counters are request totals, not cumulative Codex snapshots.
+claude_home = Path(sys.argv[3]).expanduser() if len(sys.argv) > 3 else Path.home() / '.claude'
+messages = {}
+for path in sorted((claude_home / 'projects').rglob('*.jsonl')):
+    for line in path.open():
+        try:
+            record = json.loads(line)
+            message = record.get('message', {})
+            if record.get('type') != 'assistant' or not isinstance(message, dict) or 'usage' not in message: continue
+            identity = message['id']; usage = message['usage']; model = message['model']
+            stamp = dt.datetime.fromisoformat(record['timestamp'].replace('Z', '+00:00'))
+            counts = [usage[k] for k in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'output_tokens')]
+            if not identity or any(type(n) is not int or n < 0 for n in counts) or sum(counts[:3]) > 2**63-1: continue
+        except (ValueError, KeyError, TypeError): continue
+        request_id = record.get('requestId')
+        if identity in messages:
+            previous = messages[identity]
+            if usage != previous['usage'] or model != previous['model'] or (request_id and previous['request_id'] and request_id != previous['request_id']):
+                previous['conflict'] = True
+            previous['stamp'] = min(stamp, previous['stamp'])
+            previous['request_id'] = previous['request_id'] or request_id
+        else:
+            messages[identity] = dict(usage=usage, model=model, stamp=stamp, request_id=request_id, conflict=False)
+for message in messages.values():
+    stamp = message['stamp']; local = stamp.astimezone(tz)
+    if stamp > now or (local.year, local.month) != (now_local.year, now_local.month): continue
+    usage = message['usage']; model = message['model']; rates = pricing['models'].get(model)
+    issue = message['conflict'] or not rates
+    rate = (rates or {}).get('short', {})
+    context = sum(usage[k] for k in ('input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens'))
+    if rates and rates.get('long') and context > rates.get('longContextThreshold', pricing['longContextThreshold']): rate = rates['long']
+    split = usage.get('cache_creation')
+    five = (split or {}).get('ephemeral_5m_input_tokens', 0)
+    hour = (split or {}).get('ephemeral_1h_input_tokens', 0)
+    if split is None and usage['cache_creation_input_tokens']: issue = True
+    if split is not None and (any(type(n) is not int or n < 0 for n in (five, hour)) or five + hour != usage['cache_creation_input_tokens']): issue = True
+    if (usage['cache_read_input_tokens'] and not rate.get('cached')) or (five and not rate.get('writes5m')) or (hour and not rate.get('writes1h')): issue = True
+    cost = Decimal(0) if issue else sum((Decimal(usage['input_tokens']) * Decimal(rate['input']),
+        Decimal(usage['cache_read_input_tokens']) * Decimal(rate.get('cached', '0')),
+        Decimal(five) * Decimal(rate.get('writes5m', '0')), Decimal(hour) * Decimal(rate.get('writes1h', '0')),
+        Decimal(usage['output_tokens']) * Decimal(rate['output'])), Decimal(0)) / 1_000_000
+    for period in ['month'] + (['today'] if local.date() == now_local.date() else []):
+        row = expected[period][model]; row[0] += cost; row[1] += int(issue)
 for period in ('today', 'month'):
     observed = {row['model']: (Decimal(row['total']), row['unpriced']) for row in report[period]['models']}
     wanted = {k: tuple(v) for k,v in expected[period].items()}
