@@ -1,5 +1,5 @@
 {
-  "source": "https://developers.openai.com/api/docs/pricing",
+  "source": "https://developers.openai.com/api/docs/pricing ; https://platform.claude.com/docs/en/about-claude/pricing",
   "verifiedAt": "2026-10-10",
   "longContextThreshold": 272000,
   "models": {
@@ -395,6 +395,77 @@
         "cached": "0.175",
         "writes": null,
         "output": "14.00"
+      }
+    },
+    "claude-opus-5": {
+      "short": {
+        "input": "5",
+        "cached": ".50",
+        "output": "25",
+        "writes5m": "6.25",
+        "writes1h": "10"
+      }
+    },
+    "claude-opus-4-8": {
+      "short": {
+        "input": "5",
+        "cached": ".50",
+        "output": "25",
+        "writes5m": "6.25",
+        "writes1h": "10"
+      }
+    },
+    "claude-fable-5": {
+      "short": {
+        "input": "10",
+        "cached": "1",
+        "output": "50",
+        "writes5m": "12.50",
+        "writes1h": "20"
+      }
+    },
+    "claude-fable-5-1": {
+      "short": {
+        "input": "10",
+        "cached": ".25",
+        "output": "50",
+        "writes5m": "12.50",
+        "writes1h": "20"
+      }
+    },
+    "claude-sonnet-5-5": {
+      "short": {
+        "input": "2",
+        "cached": ".10",
+        "output": "10",
+        "writes5m": "2.50",
+        "writes1h": "4"
+      }
+    },
+    "claude-opus-5-5": {
+      "short": {
+        "input": "4",
+        "cached": ".20",
+        "output": "20",
+        "writes5m": "5.00",
+        "writes1h": "8"
+      }
+    },
+    "claude-haiku-5-5": {
+      "short": {
+        "input": ".10",
+        "cached": ".01",
+        "output": ".50",
+        "writes5m": "0.1250",
+        "writes1h": "0.20"
+      },
+      "longContextThreshold": 100000,
+      "long": {
+        "input": ".50",
+        "cached": ".05",
+        "output": "2.50",
+        "writes5m": ".625",
+        "writes1h": "1"
       }
     }
   }

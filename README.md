@@ -1,6 +1,6 @@
 # Codex Cost
 
-A native macOS menu bar app that shows what your locally recorded Codex token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size.
+A native macOS menu bar app that shows what your locally recorded Codex and Claude Code token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size.
 
 ## Build and run
 
@@ -27,7 +27,7 @@ GitHub Actions runs both `CostCoreTests` and `AppTests` on pull requests and pus
 swift test --disable-xctest --enable-swift-testing
 ```
 
-All tests use synthetic fixtures and temporary directories; no local Codex logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job.
+All tests use synthetic fixtures and temporary directories; no local Codex or Claude Code logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job.
 
 ## What the estimate includes
 
@@ -52,3 +52,11 @@ CODEX_HOME=/absolute/path/to/codex 'build/Codex Cost.app/Contents/MacOS/CodexCos
 ```
 
 For a reproducible timestamp, add `--at 2026-10-11T02:00:00Z`. This emits the same accounting totals as the app without opening the UI. It reads only session metadata and usage; it does not print conversation text or access authentication files.
+
+## Claude Code coverage
+
+Also reads `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts. `CLAUDE_CONFIG_DIR` overrides the `.claude` directory (with the same Finder environment caveat as `CODEX_HOME`). Subscription usage is included whenever it is recorded locally; the estimate does not represent your subscription bill.
+
+Claude input, cache reads, cache writes, and output are separate categories. Five-minute and one-hour writes use their recorded duration breakdown. The top-level usage counts are used once; nested `iterations` and thinking detail are not added again. Message IDs are deduplicated across all files, including inherited conversation copies, using the earliest recorded timestamp. A new message processing old conversation context is fresh usage and is counted. Conflicting usage/model/request IDs, missing cache-write durations, and invalid duration totals remain unpriced with diagnostics. Records lacking a stable message ID or valid counts/timestamp are skipped and diagnosed.
+
+Bundled Claude rates cover Opus 5 and 5.5, Opus 4.8, Fable 5 and 5.1, Sonnet 5.5, and Haiku 5.5. Rates are Standard global API equivalents, applied to all displayed usage. Haiku 5.5's 100,000-token threshold includes uncached input, cache reads, and cache writes. Other models, including third-party models routed through Claude Code, remain unpriced. Missing/deleted transcripts, unrecorded requests, server-side tool fees, fast-mode premiums, geography premiums, and negotiated discounts are outside coverage. The local transcript schema is not a stable billing API; older logs without duration detail cannot fully price nonzero cache writes.

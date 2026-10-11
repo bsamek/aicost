@@ -3,6 +3,38 @@ import Testing
 @testable import CodexCost
 
 @MainActor struct AppModelTests {
+    @Test func combinesClaudeAndCodexUsage() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let codex = root.appendingPathComponent("codex")
+        let claude = root.appendingPathComponent("claude")
+        try FileManager.default.createDirectory(at: codex.appendingPathComponent("sessions"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: claude.appendingPathComponent("projects"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let stamp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-10))
+        let codexRecords = """
+        {"type":"session_meta","payload":{"id":"s"}}
+        {"type":"turn_context","payload":{"model":"gpt-6.1-sol"}}
+        {"type":"event_msg","timestamp":"\(stamp)","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"output_tokens":0},"last_token_usage":{"input_tokens":1000,"output_tokens":0}}}}
+        """
+        let claudeRecord = """
+        {"type":"assistant","timestamp":"\(stamp)","sessionId":"s","message":{"id":"msg_one","model":"claude-opus-5","usage":{"input_tokens":1000,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}}}
+        """
+        try Data(codexRecords.utf8).write(to: codex.appendingPathComponent("sessions/a.jsonl"))
+        try Data(claudeRecord.utf8).write(to: claude.appendingPathComponent("projects/a.jsonl"))
+        let model = AppModel(home: codex, claudeHome: claude)
+        await model.refresh()
+        #expect(model.summary?.today.total == Decimal(string: "0.007"))
+        #expect(model.summary?.month.total == Decimal(string: "0.007"))
+        #expect(model.summary?.today.models.count == 2)
+        #expect(model.fileCount == 2)
+        #expect(model.error == nil)
+    }
+    @Test func claudeHomeOverrideResolvesTilde() {
+        let home = URL(fileURLWithPath: "/Users/example")
+        #expect(AppModel.resolveClaudeHome(environment: [:], userHome: home).path == "/Users/example/.claude")
+        #expect(AppModel.resolveClaudeHome(environment: ["CLAUDE_CONFIG_DIR": "~/custom"], userHome: home).path == "/Users/example/custom")
+    }
+
     @Test func inaccessibleHomePreservesSuccessfulTotals() async throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: home.appendingPathComponent("sessions"), withIntermediateDirectories: true)

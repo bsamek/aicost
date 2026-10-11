@@ -9,12 +9,13 @@ struct LoadedUsage: Sendable {
     let verifiedAt: String
 }
 actor UsageLoader {
-    private let scanner = SessionScanner()
+    private let scanner = UsageScanner()
     private let home: URL
-    init(home: URL) { self.home = home }
+    private let claudeHome: URL?
+    init(home: URL, claudeHome: URL?) { self.home = home; self.claudeHome = claudeHome }
     func load(now: Date, calendar: Calendar) throws -> LoadedUsage {
         let pricing = try PricingCatalog.load()
-        let scan = try scanner.scan(home: home)
+        let scan = try scanner.scan(codexHome: home, claudeHome: claudeHome)
         return LoadedUsage(summary: SummaryBuilder.build(events: scan.events, now: now, calendar: calendar, pricing: pricing),
                            diagnostics: scan.diagnostics, fileCount: scan.fileCount, verifiedAt: pricing.verifiedAt)
     }
@@ -30,11 +31,19 @@ actor UsageLoader {
     @Published private(set) var pricingDate: String?
     private let loader: UsageLoader
 
-    init(home: URL = AppModel.resolveHome()) { loader = UsageLoader(home: home) }
+    init(home: URL, claudeHome: URL? = nil) { loader = UsageLoader(home: home, claudeHome: claudeHome) }
+    convenience init() { self.init(home: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome()) }
 
     nonisolated static func resolveHome(environment: [String: String] = ProcessInfo.processInfo.environment,
                                         userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
         guard let override = environment["CODEX_HOME"], !override.isEmpty else { return userHome.appendingPathComponent(".codex") }
+        if override == "~" { return userHome }
+        if override.hasPrefix("~/") { return userHome.appendingPathComponent(String(override.dropFirst(2))) }
+        return URL(fileURLWithPath: override, isDirectory: true)
+    }
+    nonisolated static func resolveClaudeHome(environment: [String: String] = ProcessInfo.processInfo.environment,
+                                              userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        guard let override = environment["CLAUDE_CONFIG_DIR"], !override.isEmpty else { return userHome.appendingPathComponent(".claude") }
         if override == "~" { return userHome }
         if override.hasPrefix("~/") { return userHome.appendingPathComponent(String(override.dropFirst(2))) }
         return URL(fileURLWithPath: override, isDirectory: true)
