@@ -5,7 +5,7 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [.library(name: "CostCore", targets: ["CostCore"])],
     targets: [
-        .target(name: "CostCore"),
+        .target(name: "CostCore", resources: [.process("Resources")]),
         .testTarget(name: "CostCoreTests", dependencies: ["CostCore"])
     ],
     swiftLanguageModes: [.v6]
