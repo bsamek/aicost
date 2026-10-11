@@ -59,6 +59,15 @@ public struct ParsedSession: Sendable {
     public var created: Date?
     public var events: [UsageEvent]
     public var diagnostics: Int
+    var snapshots: [UsageSnapshot] = []
+}
+struct UsageSnapshot: Sendable {
+    var identity: String
+    var timestamp: Date
+    var model: String?
+    var total: TokenUsage
+    var last: TokenUsage?
+    var ordinal: Int
 }
 public struct ScanResult: Sendable {
     public var events: [UsageEvent]

@@ -4,6 +4,13 @@ import Testing
 
 // Removing cumulative deduplication, reset handling, or validation breaks these fixtures.
 struct UsageTests {
+    @Test func testReplayedOlderSnapshotDoesNotResetBaseline() {
+        let result = SessionParser.parse(data: fixture([
+            meta("s"), usage(100), usage(150, second: 2, lastInput: 50),
+            usage(100), usage(200, second: 3, lastInput: 50)
+        ]), fileID: "f")
+        #expect(result.events.map(\.usage.input) == [100, 50, 50])
+    }
     @Test func testRepeatedSnapshotsAndModelChanges() {
         let data = fixture([
             meta("s"), context("gpt-6.1-sol"), usage(100, cached: 20, output: 10),

@@ -3,6 +3,24 @@ import Testing
 @testable import CostCore
 
 struct ScannerTests {
+    @Test func testDifferentActiveArchiveSnapshotsMergeBeforeComputingDeltas() throws {
+        let home = try temporaryHome(); defer { try? FileManager.default.removeItem(at: home) }
+        try write(fixture([meta("s"), usage(100), usage(200, second: 3, lastInput: 50)]), home, "archived_sessions/a.jsonl")
+        try write(fixture([meta("s"), usage(100), usage(150, second: 2, lastInput: 50), usage(200, second: 3, lastInput: 50)]), home, "sessions/a.jsonl")
+        let result = try SessionScanner().scan(home: home)
+        #expect(result.events.map(\.usage.input).reduce(0, +) == 200)
+    }
+
+    @Test func testInheritedForkFillsParentSnapshotGapWithoutDoubleCounting() throws {
+        let home = try temporaryHome(); defer { try? FileManager.default.removeItem(at: home) }
+        try write(fixture([meta("parent"), usage(100), usage(200, second: 3, lastInput: 50)]), home, "sessions/a.jsonl")
+        try write(fixture([
+            meta("child", fork: "parent", timestamp: "2026-10-10T12:00:04Z"),
+            usage(100), usage(150, second: 2, lastInput: 50), usage(200, second: 3, lastInput: 50),
+            usage(250, second: 5, lastInput: 50)
+        ]), home, "sessions/b.jsonl")
+        #expect(try SessionScanner().scan(home: home).events.map(\.usage.input).reduce(0, +) == 250)
+    }
     @Test func testActiveArchiveCopiesAndInheritedForkAreCountedOnce() throws {
         let home = try temporaryHome(); defer { try? FileManager.default.removeItem(at: home) }
         let parent = fixture([meta("parent"), context("gpt-6.1-sol"), usage(100)])

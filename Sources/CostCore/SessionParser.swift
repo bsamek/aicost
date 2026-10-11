@@ -5,8 +5,6 @@ public enum SessionParser {
     public static func parse(data: Data, fileID: String) -> ParsedSession {
         var result = ParsedSession(id: fileID, parent: nil, created: nil, events: [], diagnostics: 0)
         var model: String?
-        var previous = TokenUsage.zero
-        var sawUsage = false
         let fractional = ISO8601DateFormatter(); fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
         func date(_ raw: Any?) -> Date? {
@@ -39,26 +37,42 @@ public enum SessionParser {
             case "turn_context":
                 model = payload["model"] as? String
             case "event_msg" where payload["type"] as? String == "token_count":
-                // Null info records describe rate limits, not additional usage.
                 guard let info = payload["info"] as? [String: Any] else { continue }
                 guard let counts = info["total_token_usage"] as? [String: Any], let total = TokenUsage(counts),
                       let timestamp = date(record["timestamp"]) else { result.diagnostics += 1; continue }
                 let last = (info["last_token_usage"] as? [String: Any]).flatMap(TokenUsage.init)
-                let delta = total.delta(from: previous)
-                var issue: String?
-                if !sawUsage, result.parent != nil, timestamp >= (result.created ?? .distantPast), last != total {
-                    issue = "Fork baseline unavailable"
-                }
-                previous = total; sawUsage = true
-                guard delta.isValid else { result.diagnostics += 1; continue }
-                guard delta.hasTokens else { continue }
                 let identityData = Data("\(timestamp.timeIntervalSince1970)|\(total.fingerprint)".utf8)
                 let identity = SHA256.hash(data: identityData).map { String(format: "%02x", $0) }.joined()
-                result.events.append(UsageEvent(identity: identity, sessionID: result.id, timestamp: timestamp,
-                    model: model, usage: delta, requestInput: last == delta ? last?.input : nil, issue: issue))
+                result.snapshots.append(UsageSnapshot(identity: identity, timestamp: timestamp, model: model, total: total, last: last, ordinal: index))
             default: break
             }
         }
+        let metadata = result
+        result.events = normalize(metadata, diagnostics: &result.diagnostics)
         return result
+    }
+
+    // Keep raw cumulative snapshots until copies have been merged. Endpoint
+    // deduplication after computing per-file deltas cannot remove overlapping intervals.
+    static func normalize(_ session: ParsedSession, diagnostics: inout Int) -> [UsageEvent] {
+        var seen: Set<String> = []
+        var previous = TokenUsage.zero
+        var sawUsage = false
+        var events: [UsageEvent] = []
+        for record in session.snapshots.sorted(by: { ($0.timestamp, $0.ordinal) < ($1.timestamp, $1.ordinal) }) {
+            // Replayed older snapshots must not reset the baseline.
+            guard seen.insert(record.identity).inserted else { continue }
+            let delta = record.total.delta(from: previous)
+            var issue: String?
+            if !sawUsage, session.parent != nil, record.timestamp >= (session.created ?? .distantPast), record.last != record.total {
+                issue = "Fork baseline unavailable"
+            }
+            previous = record.total; sawUsage = true
+            guard delta.isValid else { diagnostics += 1; continue }
+            guard delta.hasTokens else { continue }
+            events.append(UsageEvent(identity: record.identity, sessionID: session.id, timestamp: record.timestamp,
+                model: record.model, usage: delta, requestInput: record.last == delta ? record.last?.input : nil, issue: issue))
+        }
+        return events
     }
 }
