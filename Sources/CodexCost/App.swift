@@ -53,7 +53,7 @@ import CostCore
         let total = model.summary.map { dollars($0.today.total) } ?? (model.error == nil ? "…" : "!")
         let incomplete = model.error != nil || model.diagnostics > 0 || (model.summary?.today.unpricedCount ?? 0) > 0
         item.button?.title = total
-        item.button?.toolTip = "Codex Cost — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
+        item.button?.toolTip = "Harness — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
     }
     @objc private func togglePanel() {
         if popover.isShown { popover.performClose(nil) }
@@ -83,7 +83,7 @@ import CostCore
             return true
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Couldn’t restart Codex Cost"
+            alert.messageText = "Couldn’t restart Harness"
             alert.informativeText = error.localizedDescription
             alert.alertStyle = .warning
             alert.runModal()

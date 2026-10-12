@@ -16,22 +16,22 @@ shift
 if [ "$#" -gt 0 ]; then shift; fi
 export APP_VERSION="$version" APP_BUILD_VERSION="$build" APP_ARCHS='arm64 x86_64'
 scripts/build-app.sh "$@"
-app="$PWD/build/Codex Cost.app"
+app="$PWD/build/Harness.app"
 scripts/verify-release.sh "$app" "$version" "$build"
 rm -rf build/release
 mkdir -p build/release
-archive="Codex-Cost-$version-universal.zip"
+archive="Harness-$version-universal.zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app" "build/release/$archive"
 # Verify the actual download after extraction, including its signature and startup.
 extracted="$(mktemp -d /tmp/codex-cost-release.XXXXXX)"
 trap 'rm -rf "$extracted"' EXIT
 /usr/bin/ditto -x -k "build/release/$archive" "$extracted"
-scripts/verify-release.sh "$extracted/Codex Cost.app" "$version" "$build"
+scripts/verify-release.sh "$extracted/Harness.app" "$version" "$build"
 (cd build/release && shasum -a 256 "$archive" > "$archive.sha256")
 cat > build/release/RELEASE-NOTES.md <<NOTES
-Codex Cost $version (build $build) — macOS 13 or later, Apple Silicon and Intel.
+Harness $version (build $build) — macOS 13 or later, Apple Silicon and Intel.
 
-Download \`$archive\`, unzip it, and drag \`Codex Cost.app\` into Applications. Open the app; its total appears in the menu bar. No Swift tools or API key are required.
+Download \`$archive\`, unzip it, and drag \`Harness.app\` into Applications. Open the app; its total appears in the menu bar. No Swift tools or API key are required.
 
 This release uses an ad-hoc signature. It is **not Developer ID signed or notarized by Apple**. macOS may block the first launch. If you trust this download, try opening the app, then use System Settings → Privacy & Security → Open Anyway and confirm Open. See [Apple's instructions](https://support.apple.com/102445). Do not disable Gatekeeper globally.
 

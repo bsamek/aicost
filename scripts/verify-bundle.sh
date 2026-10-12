@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # Run a relocated copy while *all* SwiftPM resources are unavailable.
-app="${1:-$PWD/build/Codex Cost.app}"
+app="${1:-$PWD/build/Harness.app}"
 launch="${2:-}"
 test_dir="$(mktemp -d /tmp/codex-cost-bundle.XXXXXX)"
 hidden_build=""
@@ -20,7 +20,7 @@ restore() {
 trap restore EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-cp -R "$app" "$test_dir/Codex Cost.app"
+cp -R "$app" "$test_dir/Harness.app"
 if [ -d .build ]; then
     hidden_build="$test_dir/swift-build"
     mv .build "$hidden_build"
@@ -31,7 +31,7 @@ export PI_CODING_AGENT_DIR="$test_dir/empty-pi"
 export OPENCODE_DATA_DIR="$test_dir/empty-opencode"
 export XDG_DATA_HOME="$test_dir/empty-data"
 export XDG_CONFIG_HOME="$test_dir/empty-config"
-binary="$test_dir/Codex Cost.app/Contents/MacOS/CodexCost"
+binary="$test_dir/Harness.app/Contents/MacOS/CodexCost"
 "$binary" --report > "$test_dir/report.json"
 python3 - "$test_dir/report.json" <<'PYTHON'
 import json, sys

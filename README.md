@@ -1,12 +1,12 @@
-# Codex Cost
+# Harness
 
-See the API-equivalent cost of your coding agents in the macOS menu bar. Codex Cost reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
+Coding agent usage and cost.
 
-![Menu bar displaying today's estimated API-equivalent cost](docs/images/menu-bar.png)
+See the API-equivalent cost of your coding agents in the macOS menu bar. Harness reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
 
-![Expanded Codex Cost panel showing Today and This Month totals with a breakdown across GPT and Claude models](docs/images/usage-panel.png)
+![Expanded Harness panel showing Today and This Month totals with a breakdown across GPT and Claude models](docs/images/usage-panel.png)
 
-*Native app views captured with synthetic usage data.*
+*Native app panel captured with synthetic usage data. Models appear alphabetically by provider and family: Claude Haiku, Opus, and Sonnet, then GPT Astra and Sol. Each period shows only models with priced usage.*
 
 ## Features
 
@@ -26,9 +26,9 @@ These are **token-cost estimates**, not your subscription bill or an exact histo
 
 ## Install and run
 
-**No versioned release has been published yet.** Build from source using the steps below. The [release workflow](.github/workflows/release.yml) will publish a universal Apple Silicon + Intel ZIP when a maintainer tags a validated version; see [GitHub Releases](https://github.com/bsamek/aicost/releases) for future downloads.
+Download the universal Apple Silicon + Intel ZIP from [the latest release](https://github.com/bsamek/aicost/releases/latest), or build from source using the steps below. The existing v0.1.0 release is named **Codex Cost** (`Codex-Cost-0.1.0-universal.zip`, containing `Codex Cost.app`); subsequent releases and source builds use **Harness**.
 
-When a release is available, download `Codex-Cost-VERSION-universal.zip`, unzip it, and drag `Codex Cost.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Codex-Cost-VERSION-universal.zip.sha256`; it does not establish publisher identity.
+Download `Harness-VERSION-universal.zip`, unzip it, and drag `Harness.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Harness-VERSION-universal.zip.sha256`; it does not establish publisher identity.
 
 Build from a checkout:
 
@@ -36,14 +36,14 @@ Build from a checkout:
 git clone https://github.com/bsamek/aicost.git
 cd aicost
 bash scripts/build-app.sh
-open 'build/Codex Cost.app'
+open 'build/Harness.app'
 ```
 
 The build uses your Mac's architecture and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. To update, use **Quit** in the panel, replace the app, and open the new copy; local usage logs live outside the app.
 
 ## Usage and log locations
 
-Open the app, then click its dollar total in the menu bar. Both periods group models by provider and family, with newer numeric versions first. Unknown providers and families appear last by model ID. Only models with priced usage appear in the panel; use the diagnostic report to inspect skipped or unpriced records.
+Open the app, then click its dollar total in the menu bar. Both periods sort models alphabetically by provider and then by model family, with newer numeric versions first within each family. The order does not depend on cost. Unknown providers and families appear last by model ID. Only models with priced usage appear in the panel; use the diagnostic report to inspect skipped or unpriced records.
 
 | Agent | Default local source | Override |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Finder launches usually do not inherit shell environment variables. For custom r
 ```sh
 CODEX_HOME=/absolute/path/to/codex \
 CLAUDE_CONFIG_DIR=/absolute/path/to/claude \
-'build/Codex Cost.app/Contents/MacOS/CodexCost'
+'build/Harness.app/Contents/MacOS/CodexCost'
 ```
 
 The app reads usage and session metadata without changing logs. OpenCode is scanned through a private temporary copy of its database and committed WAL, removed after each scan. It does not access authentication files, send data to a server, or print conversation text in reports.
@@ -73,13 +73,13 @@ Unknown models and ambiguous usage are excluded from dollar totals. Missing/dele
 ## Diagnostic report
 
 ```sh
-'build/Codex Cost.app/Contents/MacOS/CodexCost' --report
+'build/Harness.app/Contents/MacOS/CodexCost' --report
 ```
 
 This prints JSON with the same accounting totals as the app without opening the UI. Add an ISO 8601 timestamp for a reproducible cutoff:
 
 ```sh
-'build/Codex Cost.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
+'build/Harness.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
 ```
 
 The report includes file/diagnostic counts, per-model totals, and reasons for unpriced usage. It reads only session metadata and usage.
