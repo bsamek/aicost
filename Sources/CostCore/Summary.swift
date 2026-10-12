@@ -36,9 +36,8 @@ public enum SummaryBuilder {
                 }
                 rows[name] = row
             }
-            result.models = rows.values.sorted {
-                $0.total == $1.total ? $0.model < $1.model : $0.total > $1.total
-            }
+            result.models = rows.values.map { (row: $0, order: ModelOrder(model: $0.model)) }
+                .sorted { $0.order < $1.order }.map(\.row)
             return result
         }
         return CostSummary(today: period(day), month: period(month))
