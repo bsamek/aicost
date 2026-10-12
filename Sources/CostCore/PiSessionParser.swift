@@ -33,10 +33,20 @@ public enum PiSessionParser {
             let usage: PiTokenUsage
         }
     }
+    private struct AuxiliaryRecord: Decodable {
+        let id: String
+        let timestamp: String
+        let responseId: String?
+        let provider: String?
+        let model: String?
+        let usage: PiTokenUsage
+    }
     public static func parse(data: Data) -> ScanResult {
         var events: [UsageEvent] = []; var diagnostics = 0
         var sessionID: String?; var supported = false
         let decoder = JSONDecoder()
+        let fractional = ISO8601DateFormatter(); fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
         for line in data.split(separator: 0x0a) where !line.allSatisfy({ $0 == 0x20 || $0 == 0x0d || $0 == 0x09 }) {
             do {
                 guard let object = try JSONSerialization.jsonObject(with: Data(line)) as? [String: Any] else {
@@ -46,6 +56,29 @@ public enum PiSessionParser {
                     sessionID = object["id"] as? String
                     supported = [2, 3].contains(object["version"] as? Int ?? 0) && sessionID?.isEmpty == false
                     if !supported { diagnostics += 1 }
+                    continue
+                }
+                if let type = object["type"] as? String, ["usage", "compaction", "branch_summary"].contains(type), object["usage"] != nil {
+                    guard supported, let sessionID else { diagnostics += 1; continue }
+                    let record = try decoder.decode(AuxiliaryRecord.self, from: Data(line))
+                    guard !record.id.isEmpty, record.usage.isValid,
+                          let date = fractional.date(from: record.timestamp) ?? plain.date(from: record.timestamp) else {
+                        diagnostics += 1; continue
+                    }
+                    // Summary usage can span calls and has no provider/model in the persisted schema.
+                    // Do not infer attribution from adjacent model-change or assistant records.
+                    let provider = type == "usage" ? record.provider.flatMap { $0.isEmpty ? nil : $0 } : nil
+                    let model = type == "usage" ? record.model.flatMap { $0.isEmpty ? nil : $0 } : nil
+                    let issue = provider == nil || model == nil ? "Pi \(type) usage provider/model unavailable" : nil
+                    let response = type == "usage" && provider != nil ? record.responseId.flatMap { $0.isEmpty ? nil : $0 } : nil
+                    let parts = response.map { ["pi", provider!, "response", $0] }
+                        ?? ["pi", provider ?? "unattributed", "entry", type, record.id, String(date.timeIntervalSince1970)]
+                    let identity = parts.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
+                    var event = UsageEvent(identity: identity, sessionID: sessionID, timestamp: date,
+                        model: model, usage: .zero, requestInput: record.usage.requestInput, issue: issue)
+                    event.piUsage = record.usage; event.piProvider = provider; event.requestID = response
+                    events.append(event)
+                    if issue != nil { diagnostics += 1 }
                     continue
                 }
                 guard object["type"] as? String == "message",
@@ -61,7 +94,7 @@ public enum PiSessionParser {
                 let response = messageRecord.responseId.flatMap { $0.isEmpty ? nil : $0 }
                 // Forks preserve entries and message timestamps. Provider IDs must stay separate.
                 let identityParts = response.map { ["pi", messageRecord.provider, "response", $0] }
-                    ?? ["pi", messageRecord.provider, "entry", record.id, String(messageRecord.timestamp), model]
+                    ?? ["pi", messageRecord.provider, "entry", "message", record.id, String(messageRecord.timestamp)]
                 let identity = identityParts.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
                 var event = UsageEvent(identity: identity, sessionID: sessionID,
                     timestamp: Date(timeIntervalSince1970: Double(messageRecord.timestamp) / 1000), model: model,

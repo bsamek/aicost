@@ -138,19 +138,32 @@ for path in sorted((pi_home / 'sessions').rglob('*.jsonl')):
             if record.get('type') == 'session':
                 supported = record.get('version') in (2, 3) and bool(record.get('id'))
                 continue
-            message = record.get('message', {})
-            if not supported or record.get('type') != 'message' or message.get('role') != 'assistant' or 'usage' not in message: continue
-            provider = message['provider']; model = message.get('responseModel') or message['model']
-            usage = message['usage']; entry = record['id']; milliseconds = message['timestamp']
+            if not supported: continue
+            entry = record['id']; entry_type = record.get('type')
+            if entry_type == 'message':
+                message = record.get('message', {})
+                if message.get('role') != 'assistant' or 'usage' not in message: continue
+                provider = message['provider']; model = message.get('responseModel') or message['model']
+                usage = message['usage']; milliseconds = message['timestamp']
+                if not provider or not model or type(milliseconds) is not int or not 0 <= milliseconds <= 253402300799999: continue
+                stamp = dt.datetime.fromtimestamp(milliseconds / 1000, dt.timezone.utc)
+                response = message.get('responseId')
+                identity = (provider, 'response', response) if response else (provider, 'entry', 'message', entry, milliseconds)
+            elif entry_type in ('usage', 'compaction', 'branch_summary') and 'usage' in record:
+                usage = record['usage']
+                stamp = dt.datetime.fromisoformat(record['timestamp'].replace('Z', '+00:00'))
+                provider = record.get('provider') or None if entry_type == 'usage' else None
+                model = record.get('model') or None if entry_type == 'usage' else None
+                response = record.get('responseId') if entry_type == 'usage' and provider else None
+                identity = (provider, 'response', response) if response else (provider or 'unattributed', 'entry', entry_type, entry, stamp.timestamp())
+            else: continue
+            unattributed = not provider or not model
             counts = [usage[k] for k in ('input', 'cacheRead', 'cacheWrite', 'output')]
             hour = usage.get('cacheWrite1h'); reasoning = usage.get('reasoning')
-            if not entry or not provider or not model or type(milliseconds) is not int or not 0 <= milliseconds <= 253402300799999: continue
+            if not entry: continue
             if any(type(n) is not int or not 0 <= n <= 2**63-1 for n in counts) or sum(counts[:3]) > 2**63-1: continue
             if hour is not None and (type(hour) is not int or not 0 <= hour <= usage['cacheWrite']): continue
             if reasoning is not None and (type(reasoning) is not int or not 0 <= reasoning <= usage['output']): continue
-            stamp = dt.datetime.fromtimestamp(milliseconds / 1000, dt.timezone.utc)
-            response = message.get('responseId')
-            identity = (provider, 'response', response) if response else (provider, 'entry', entry, milliseconds, model)
         except (ValueError, KeyError, TypeError, OverflowError): continue
         # cost/totalTokens are derived fields and must not affect duplicate identity.
         normalized = tuple(counts) + (hour, reasoning)
@@ -159,16 +172,16 @@ for path in sorted((pi_home / 'sessions').rglob('*.jsonl')):
             previous['conflict'] |= previous['counts'] != normalized or previous['model'] != model
             previous['stamp'] = min(previous['stamp'], stamp)
         else:
-            pi_messages[identity] = dict(provider=provider, model=model, usage=usage, counts=normalized, stamp=stamp, conflict=False)
+            pi_messages[identity] = dict(provider=provider, model=model, usage=usage, counts=normalized, stamp=stamp, conflict=False, unattributed=unattributed)
 for message in pi_messages.values():
     stamp = message['stamp']; local = stamp.astimezone(tz)
     if stamp > now or (local.year, local.month) != (now_local.year, now_local.month): continue
     provider = message['provider']; model = message['model']; usage = message['usage']
     rates = None
-    if provider == 'anthropic' and model.startswith('claude-'): rates = pricing['models'].get(model)
-    elif provider in ('openai', 'openai-codex') and not model.startswith('claude-'): rates = pricing['models'].get(model)
-    elif provider == 'fireworks': rates = pi_pricing['models'].get(provider + '/' + model)
-    issue = message['conflict'] or not rates
+    if provider == 'anthropic' and model and model.startswith('claude-'): rates = pricing['models'].get(model)
+    elif provider in ('openai', 'openai-codex') and model and not model.startswith('claude-'): rates = pricing['models'].get(model)
+    elif provider == 'fireworks' and model: rates = pi_pricing['models'].get(provider + '/' + model)
+    issue = message['conflict'] or message['unattributed'] or not rates
     rate = (rates or {}).get('short', {})
     context = usage['input'] + usage['cacheRead'] + usage['cacheWrite']
     if rates and rates.get('long') and context > rates.get('longContextThreshold', pricing['longContextThreshold']): rate = rates['long']
@@ -186,7 +199,8 @@ for message in pi_messages.values():
         write_cost = Decimal(usage['cacheWrite']) * Decimal(rate.get('writes') or '0')
     cost = Decimal(0) if issue else (Decimal(usage['input']) * Decimal(rate['input']) + Decimal(usage['cacheRead']) * Decimal(rate.get('cached') or '0') + write_cost + Decimal(usage['output']) * Decimal(rate['output'])) / 1_000_000
     for period in ['month'] + (['today'] if local.date() == now_local.date() else []):
-        row = expected[period][provider + '/' + model]; row[0] += cost; row[1] += int(issue)
+        label = provider + '/' + (model or 'Unknown model') if provider else model or 'Unknown model'
+        row = expected[period][label]; row[0] += cost; row[1] += int(issue)
 for period in ('today', 'month'):
     observed = {row['model']: (Decimal(row['total']), row['unpriced']) for row in report[period]['models']}
     wanted = {k: tuple(v) for k,v in expected[period].items()}
