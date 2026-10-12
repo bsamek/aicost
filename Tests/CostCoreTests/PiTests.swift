@@ -82,6 +82,81 @@ struct PiTests {
             #expect(try PricingCatalog.load().cost(for: scan.events.first { $0.piProvider == "openai-codex" }!).usd == nil)
         }
     }
+    @Test func attributedAuxiliaryUsageIsPricedAndUnattributedSummariesRemainVisible() throws {
+        let records = [piAuxiliaryFixture(type: "usage", id: "warm"),
+                       piAuxiliaryFixture(type: "compaction", id: "compact"),
+                       piAuxiliaryFixture(type: "branch_summary", id: "branch")].joined(separator: "\n")
+        let scan = PiSessionParser.parse(data: piData(records))
+        #expect(scan.events.count == 3)
+        #expect(scan.diagnostics == 2)
+        let pricing = try PricingCatalog.load()
+        let attributed = try #require(scan.events.first { $0.model != nil })
+        #expect(pricing.cost(for: attributed).usd == Decimal(string: "0.002"))
+        let formatter = ISO8601DateFormatter()
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        let summary = SummaryBuilder.build(events: scan.events, now: formatter.date(from: "2026-10-12T17:00:00Z")!, calendar: calendar, pricing: pricing)
+        #expect(summary.today.total == Decimal(string: "0.002"))
+        #expect(summary.today.unpricedCount == 2)
+        let unknown = try #require(summary.today.models.first { $0.model == "Unknown model" })
+        #expect(unknown.unpricedCount == 2)
+        #expect(unknown.reasons == ["Pi compaction usage provider/model unavailable", "Pi branch_summary usage provider/model unavailable"])
+    }
+    @Test func auxiliaryUsageUsesISOTimestampAndInheritedCopiesCountOnce() throws {
+        try withPiHome { home in
+            let records = [piAuxiliaryFixture(type: "usage", id: "prior-month", timestamp: "2026-10-01T03:59:59Z"),
+                           piAuxiliaryFixture(type: "usage", id: "prior-day", timestamp: "2026-10-12T03:59:59.999Z"),
+                           piAuxiliaryFixture(type: "usage", id: "today", timestamp: "2026-10-12T04:00:00.000Z"),
+                           piAuxiliaryFixture(type: "compaction", id: "summary")].joined(separator: "\n")
+            try piData(records, version: 2).write(to: home.appendingPathComponent("sessions/a.jsonl"))
+            try piData(records, session: "fork").write(to: home.appendingPathComponent("sessions/b.jsonl"))
+            let scan = try PiSessionScanner().scan(home: home)
+            #expect(scan.events.count == 4)
+            var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(identifier: "America/New_York")!
+            let summary = SummaryBuilder.build(events: scan.events, now: ISO8601DateFormatter().date(from: "2026-10-12T17:00:00Z")!, calendar: calendar, pricing: try PricingCatalog.load())
+            #expect(summary.today.total == Decimal(string: "0.002"))
+            #expect(summary.month.total == Decimal(string: "0.004"))
+            #expect(summary.today.unpricedCount == 1)
+        }
+    }
+    @Test func sharedProviderResponseIDDeduplicatesAssistantAndAuxiliaryRecords() throws {
+        try withPiHome { home in
+            let auxiliary = piAuxiliaryFixture(type: "usage", id: "imported")
+                .replacingOccurrences(of: "\"usage\":", with: "\"responseId\":\"resp_one\",\"usage\":")
+                .replacingOccurrences(of: "\"output\":0,\"cacheRead\":0,\"cacheWrite\":0", with: "\"output\":200,\"cacheRead\":200,\"cacheWrite\":100,\"cacheWrite1h\":0,\"reasoning\":50")
+            try piData(piFixture() + "\n" + auxiliary).write(to: home.appendingPathComponent("sessions/a.jsonl"))
+            let scan = try PiSessionScanner().scan(home: home)
+            #expect(scan.events.count == 1)
+            #expect(scan.diagnostics == 0)
+            #expect(try PricingCatalog.load().cost(for: scan.events[0]).usd == Decimal(string: "0.00427"))
+        }
+    }
+    @Test func auxiliaryMissingAttributionIsUnpricedAndInvalidDataIsDiagnosed() throws {
+        let missing = PiSessionParser.parse(data: piData(piAuxiliaryFixture(type: "usage", id: "missing").replacingOccurrences(of: "\"provider\":\"openai-codex\",\"model\":\"gpt-6.1-sol\",", with: "")))
+        let event = try #require(missing.events.first)
+        #expect(event.model == nil)
+        #expect(try PricingCatalog.load().cost(for: event).usd == nil)
+        #expect(missing.diagnostics == 1)
+        for fixture in [piAuxiliaryFixture(type: "usage", id: "", timestamp: "2026-10-12T13:00:00Z"),
+                        piAuxiliaryFixture(type: "usage", id: "bad-time", timestamp: "invalid"),
+                        piAuxiliaryFixture(type: "branch_summary", id: "negative").replacingOccurrences(of: "\"input\":1000", with: "\"input\":-1")] {
+            let scan = PiSessionParser.parse(data: piData(fixture))
+            #expect(scan.events.isEmpty)
+            #expect(scan.diagnostics == 1)
+        }
+        let withoutUsage = "{\"type\":\"compaction\",\"id\":\"no-usage\"}"
+        #expect(PiSessionParser.parse(data: piData(withoutUsage)).diagnostics == 0)
+    }
+    @Test func fallbackModelConflictCountsOnceAndRemainsUnpriced() throws {
+        try withPiHome { home in
+            try piData(piFixture(response: "")).write(to: home.appendingPathComponent("sessions/a.jsonl"))
+            try piData(piFixture(response: "", model: "gpt-6-astra"), session: "fork").write(to: home.appendingPathComponent("sessions/b.jsonl"))
+            let scan = try PiSessionScanner().scan(home: home)
+            let event = try #require(scan.events.first)
+            #expect(scan.events.count == 1)
+            #expect(scan.diagnostics == 1)
+            #expect(try PricingCatalog.load().cost(for: event).usd == nil)
+        }
+    }
     @Test func missingRootIsEmptyBadRootThrowsAndChangesInvalidateCache() throws {
         try withPiHome { home in
             let scanner = PiSessionScanner()
@@ -131,6 +206,12 @@ struct PiTests {
 private func piFixture(id: String = "a1b2c3d4", output: Int64 = 200, response: String = "resp_one", provider: String = "openai-codex", model: String = "gpt-6.1-sol", input: Int64 = 1000, writes: Int64 = 100, hour: String = "0", milliseconds: Int64 = 1791806400000) -> String {
     """
     {"type":"message","id":"\(id)","parentId":null,"timestamp":"2026-10-12T13:00:00Z","message":{"role":"assistant","provider":"\(provider)","model":"\(model)","responseId":"\(response)","timestamp":\(milliseconds),"stopReason":"toolUse","usage":{"input":\(input),"output":\(output),"cacheRead":200,"cacheWrite":\(writes),"cacheWrite1h":\(hour),"reasoning":50,"totalTokens":999999,"cost":{"total":99999}}}}
+    """
+}
+private func piAuxiliaryFixture(type: String, id: String, timestamp: String = "2026-10-12T13:00:00Z") -> String {
+    let attribution = type == "usage" ? "\"kind\":\"cache_warm\",\"provider\":\"openai-codex\",\"model\":\"gpt-6.1-sol\"," : ""
+    return """
+    {"type":"\(type)","id":"\(id)","parentId":null,"timestamp":"\(timestamp)",\(attribution)"usage":{"input":1000,"output":0,"cacheRead":0,"cacheWrite":0}}
     """
 }
 private func piData(_ records: String, session: String = "session", version: Int = 3) -> Data {
