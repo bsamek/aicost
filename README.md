@@ -1,6 +1,6 @@
 # Codex Cost
 
-A native macOS menu bar app that shows what your locally recorded Codex and Claude Code token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size.
+A native macOS menu bar app that shows what your locally recorded Codex and Claude Code token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size. Model rows use the same order in Today and This Month, independent of their costs: serving provider alphabetically, then model family alphabetically, then newer numeric versions first (for example, Sol 6.10 before 6.9, or Opus 5.5 before 5). Recognized families are Claude Fable/Haiku/Opus/Sonnet, OpenAI Astra/GPT/Luna/o-series/Sol/Terra, and DeepSeek/GLM. Provider-prefixed IDs use the serving provider, including Fireworks, OpenCode, OpenCode Go, and OpenRouter; `openai-codex` shares OpenAI's ordering while keeping its row identity. Equal versions use the full model ID alphabetically. Unfamiliar models appear last with the same deterministic ID fallback. Sorting does not change totals or which priced rows are visible.
 
 ## Build and run
 
