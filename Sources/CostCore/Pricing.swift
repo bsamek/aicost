@@ -45,14 +45,16 @@ public struct PricingCatalog: Sendable {
     public let verifiedAt: String
     private let threshold: Int64
     private let models: [String: ModelRates]
+    private let openCodePricing: OpenCodePricingCatalog?
 
     private let piModels: [String: ModelRates]
 
-    public init(data: Data, piData: Data? = nil) throws {
+    public init(data: Data, piData: Data? = nil, openCodeData: Data? = nil) throws {
         let catalog = try JSONDecoder().decode(Catalog.self, from: data)
         guard catalog.longContextThreshold > 0, !catalog.models.isEmpty else { throw PricingError.invalidCatalog }
         let piCatalog = try piData.map { try JSONDecoder().decode(Catalog.self, from: $0) }
         piModels = piCatalog?.models ?? [:]
+        openCodePricing = try openCodeData.map { try OpenCodePricingCatalog(data: $0) }
         source = catalog.source + (piCatalog.map { " ; " + $0.source } ?? "")
         verifiedAt = min(catalog.verifiedAt, piCatalog?.verifiedAt ?? catalog.verifiedAt)
         threshold = catalog.longContextThreshold; models = catalog.models
@@ -68,13 +70,17 @@ public struct PricingCatalog: Sendable {
             guard let url, FileManager.default.fileExists(atPath: url.path) else { throw PricingError.missingCatalog }
             return try Data(contentsOf: url)
         }
-        return try PricingCatalog(data: resource("pricing"), piData: resource("pi-pricing"))
+        return try PricingCatalog(data: resource("pricing"), piData: resource("pi-pricing"), openCodeData: OpenCodePricingCatalog.bundledData())
     }
     public func cost(for event: UsageEvent) -> CostResult {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
         if let issue = event.issue { return unpriced(issue) }
         if let usage = event.piUsage { return piCost(for: event, usage: usage) }
         if let usage = event.claudeUsage { return claudeCost(for: event, usage: usage) }
+        if let usage = event.openCodeUsage {
+            guard let openCodePricing else { return unpriced("OpenCode pricing catalog unavailable") }
+            return openCodePricing.cost(for: event, usage: usage)
+        }
         guard event.usage.isValid else { return unpriced("Invalid token counts") }
         guard let model = event.model, let modelRates = models[model] else { return unpriced("Model rate unavailable") }
         let usage = event.usage

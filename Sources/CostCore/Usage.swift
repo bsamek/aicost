@@ -44,6 +44,8 @@ public struct UsageEvent: Sendable {
     public var piUsage: PiTokenUsage? = nil
     public var piProvider: String? = nil
     public var claudeUsage: ClaudeTokenUsage? = nil
+    public var openCodeUsage: OpenCodeTokenUsage? = nil
+    public var openCodeProvider: String? = nil
     public var requestID: String? = nil
     public var identity: String
     public var sessionID: String

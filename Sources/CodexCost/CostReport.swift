@@ -11,7 +11,7 @@ enum CostReport {
             now = date
         } else { now = Date() }
         let pricing = try PricingCatalog.load()
-        let scan = try UsageScanner().scan(codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), piHome: AppModel.resolvePiHome())
+        let scan = try UsageScanner().scan(codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome())
         let summary = SummaryBuilder.build(events: scan.events, now: now, calendar: .current, pricing: pricing)
         func period(_ cost: PeriodCost) -> [String: Any] {
             ["total": NSDecimalNumber(decimal: cost.total).stringValue,
