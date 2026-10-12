@@ -2,6 +2,18 @@
 
 A native macOS menu bar app that shows what your locally recorded Codex, Claude Code, Pi, and OpenCode token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size. Model rows use the same order in Today and This Month, independent of their costs: serving provider alphabetically, then model family alphabetically, then newer numeric versions first (for example, Sol 6.10 before 6.9, or Opus 5.5 before 5). Recognized families are Claude Fable/Haiku/Opus/Sonnet, OpenAI Astra/GPT/Luna/o-series/Sol/Terra, and DeepSeek/GLM. Provider-prefixed IDs use the serving provider, including Fireworks, OpenCode, OpenCode Go, and OpenRouter; `openai-codex` shares OpenAI's ordering while keeping its row identity. Equal versions use the full model ID alphabetically. Unfamiliar models appear last with the same deterministic ID fallback. Sorting does not change totals or which priced rows are visible.
 
+## Download and install
+
+Versioned downloads are published on [GitHub Releases](https://github.com/bsamek/aicost/releases) when a maintainer pushes a `vMAJOR.MINOR.PATCH` tag. There may be no downloadable version until the first tag is published. Download `Codex-Cost-VERSION-universal.zip`: it includes both Apple Silicon (`arm64`) and Intel (`x86_64`) code and requires **macOS 13 or later**. Swift tools and an API key are not needed to run a download.
+
+1. Unzip the download and drag `Codex Cost.app` into Applications.
+2. Open the app. Its total appears in the menu bar; there is no Dock icon or main window.
+3. If macOS blocks it, try opening it once, then go to **System Settings → Privacy & Security → Open Anyway** and confirm Open. Only do this for a download you trust; [Apple explains the exception](https://support.apple.com/102445). Do not disable Gatekeeper globally.
+
+Downloads are ad-hoc signed, **not Developer ID signed or notarized by Apple**. The signature supports executable integrity checks but does not establish the publisher's identity. The ZIP's adjacent `.sha256` file checks download integrity: put both in the same folder and run `shasum -a 256 -c Codex-Cost-VERSION-universal.zip.sha256` there. A checksum does not authenticate a publisher either.
+
+To update, quit the running copy (Activity Monitor can stop `CodexCost`), replace the app in Applications, and open the new copy. Local usage logs are stored outside the app. Open it again after restarting your Mac.
+
 ## Build and run
 
 Requires macOS 13 or later and Apple's Swift Command Line Tools. No third-party dependencies or API key.
@@ -11,7 +23,7 @@ bash scripts/build-app.sh
 open 'build/Codex Cost.app'
 ```
 
-The build uses the Mac's architecture and signs the bundle locally. You can keep it in this folder or copy it into Applications. To start it after restarting your Mac, open the app again.
+The build uses the Mac's architecture and ad-hoc signs the bundle locally. You can keep it in this folder or copy it into Applications. To start it after restarting your Mac, open the app again.
 
 Tests:
 
@@ -27,7 +39,7 @@ GitHub Actions runs both `CostCoreTests` and `AppTests` on pull requests and pus
 swift test --disable-xctest --enable-swift-testing
 ```
 
-All tests use synthetic fixtures and temporary directories; no local Codex, Claude Code, or Pi logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job.
+All tests use synthetic fixtures and temporary directories; no local Codex, Claude Code, Pi, or OpenCode logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job. After tests pass, CI also builds both architectures, packages a universal ZIP, verifies version/deployment metadata and every bundled resource, and launches a relocated copy of the extracted app with isolated log roots. PR builds use version `0.0.0` and are workflow artifacts, not public releases.
 
 ## What the estimate includes
 
@@ -88,3 +100,24 @@ OpenCode forks can copy messages under new IDs. A record predating its owning se
 Rows retain `provider/model` names. Direct `openai` requests use the bundled Standard OpenAI catalog, including verified cache-write rates. The separate `opencode-pricing.json` catalog uses [OpenCode Console's published gateway rates](https://dev.opencode.ai/v2/docs/console/models), verified October 12, 2026: GPT 6/6.1 and 5.6 families, GPT 5.5/5.4, GPT 5.4 Mini/Nano, GPT 5.3 Codex, GPT 5.2/5.1/5; Claude Fable 5/5.1, Opus 5/5.5 and 4.5–4.8, Sonnet 5/5.5 and 4.5/4.6, Haiku 4.5/5.5; Gemini 3 Flash, Kimi K2.6, and currently free Big Pickle. Context tiers include all input categories. Missing cache rates remain unpriced; zero published prices count as priced.
 
 Fireworks (`fireworks-ai`) Standard rates also cover the exact `accounts/fireworks/models/deepseek-v4p1-flash` and `accounts/fireworks/models/glm-5p3-flash` IDs, verified against the [current pricing table](https://docs.fireworks.ai/serverless/pricing) and linked model pages on October 12, 2026. DeepSeek V4.1 Flash is $0.30/$0.006/$1.20 and GLM 5.3 Flash is $0.15/$0.03/$0.50 per million uncached input/cached input/output tokens. Nonzero writes without a published rate stay unpriced. Other provider/model combinations, including older Fireworks models, OpenRouter, custom endpoints, and OpenCode Go (`opencode-go`), remain unpriced rather than borrowing a similarly named model's rate or trusting recorded cost. The diagnostic report includes the provider/model and explicit reasons. Current rates are applied to all displayed history; subscription charges, Priority/Fast mode and regional premiums, negotiated rates, payment fees, unrecorded title-generation calls, non-token tools, deleted data, pre-SQLite JSON storage, and future schema changes are outside coverage. Primary schema/accounting references: [token categories](https://github.com/anomalyco/opencode/blob/dev/packages/schema/src/token-usage.ts), [usage pricing](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/usage.ts), and [fork projection](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/projector.ts), and [legacy fork copying](https://github.com/anomalyco/opencode/blob/v1.2.27/packages/opencode/src/session/index.ts).
+
+## Release maintenance
+
+The tag workflow in `.github/workflows/release.yml` calls the same test-and-package workflow used for PRs and `main`. It uses macOS 15, Xcode 16.4 and the standard Swift toolchain; there are no third-party Swift dependencies. Each architecture is built with an explicit macOS 13 deployment target and combined with `lipo`. This is a repeatable build recipe, not a claim of byte-for-byte identical ZIPs (build numbers, signatures and archive timestamps can differ).
+
+To validate a release locally without publishing:
+
+```sh
+# A standard Swift 6 toolchain; omit SWIFT_TOOL to use the local CLT workaround.
+SWIFT_TOOL=swift scripts/package-release.sh 1.2.3 1
+```
+
+This writes a universal ZIP, SHA-256 checksum and generated release notes into `build/release`. It validates both binary architectures, version/build metadata, macOS deployment targets, signature integrity, resource contents, the diagnostic report with `.build` hidden, and native GUI process startup after relocation and ZIP extraction. It stops only the temporary app process it starts. Runtime checks cover the runner's native architecture and OS; macOS 13 and the other architecture are validated in metadata, not tested on physical Macs.
+
+After merging and reviewing CI, a maintainer can create and push an annotated `v1.2.3` tag at the intended commit. Only numeric three-part stable versions are accepted. **Pushing a version tag authorizes publication**: after validation passes, the workflow creates the GitHub Release and attaches the ZIP and checksum. A failed test, packaging check or extraction check prevents the publish job. The tag sets `CFBundleShortVersionString`; the release workflow's run number sets `CFBundleVersion`. The public Release names the source commit and includes install/Gatekeeper instructions. A repeated run does not overwrite an existing Release; choose a new version for changed artifacts.
+
+### Signing and notarization
+
+The current workflow needs only GitHub's temporary token to publish the validated artifacts. It does not request Apple credentials or claim notarization. To distribute with the normal Gatekeeper developer identity path, a future workflow needs an Apple Developer Program membership, a **Developer ID Application** certificate/private key, hardened runtime signing with a secure timestamp, submission to Apple's notary service, and a stapled accepted ticket before packaging. See [Apple's notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+
+Keep any future certificate export, certificate password and notarization credentials in **GitHub Actions secrets**; never commit them or print them in logs. Import the certificate into a temporary runner keychain, sign the finished app, wait for notarization acceptance, staple and validate the ticket, re-run relocated package checks, and only then permit publication. Signing/notarization is not implemented by this release workflow; the ad-hoc download path above retains a first-launch Gatekeeper exception.
