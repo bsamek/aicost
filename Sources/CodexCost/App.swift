@@ -26,6 +26,7 @@ import CostCore
     private let popover = NSPopover()
     private var timer: Timer?
     private var observation: AnyCancellable?
+    private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -34,7 +35,11 @@ import CostCore
             button.target = self; button.action = #selector(togglePanel)
         }
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: CostPanel(model: model))
+        popover.contentViewController = NSHostingController(rootView: CostPanel(
+            model: model,
+            restart: { [weak self] in self?.restart() ?? false },
+            quit: { [weak self] in self?.quit() }
+        ))
         observation = model.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateTitle() }
         }
@@ -57,5 +62,42 @@ import CostCore
             popover.contentViewController?.view.window?.makeKey()
         }
     }
-    func applicationWillTerminate(_ notification: Notification) { timer?.invalidate() }
+    private func quit() {
+        guard !isTerminating else { return }
+        isTerminating = true
+        NSApplication.shared.terminate(nil)
+    }
+
+    private func restart() -> Bool {
+        guard !isTerminating else { return true }
+        do {
+            guard Bundle.main.bundleURL.pathExtension == "app",
+                  let executable = Bundle.main.executableURL,
+                  FileManager.default.isExecutableFile(atPath: executable.path) else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+            let helper = AppRelauncher.makeProcess(bundleURL: Bundle.main.bundleURL,
+                                                   processIdentifier: ProcessInfo.processInfo.processIdentifier)
+            try helper.run()
+            quit()
+            return true
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Couldn’t restart Codex Cost"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+            return false
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        timer?.invalidate()
+        timer = nil
+        observation?.cancel()
+        observation = nil
+        popover.close()
+        if let item { NSStatusBar.system.removeStatusItem(item) }
+        item = nil
+    }
 }

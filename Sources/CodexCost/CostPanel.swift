@@ -1,8 +1,14 @@
 import SwiftUI
 import CostCore
 
+// Select the property wrapper explicitly on SDKs that also export a State macro.
+private typealias PanelState<Value> = SwiftUI.State<Value>
+
 struct CostPanel: View {
     @ObservedObject var model: AppModel
+    let restart: () -> Bool
+    let quit: () -> Void
+    @PanelState private var isRestarting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -14,6 +20,16 @@ struct CostPanel: View {
                 Text(model.error == nil ? "Reading usage…" : "Usage unavailable")
                     .foregroundStyle(.secondary)
             }
+            Divider()
+            HStack(spacing: 12) {
+                Spacer()
+                Button("Restart") {
+                    isRestarting = true
+                    isRestarting = restart()
+                }
+                Button("Quit", action: quit)
+            }
+            .disabled(isRestarting)
         }
         .font(.system(size: 13))
         .padding(16)
