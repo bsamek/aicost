@@ -12,10 +12,11 @@ actor UsageLoader {
     private let scanner = UsageScanner()
     private let home: URL
     private let claudeHome: URL?
-    init(home: URL, claudeHome: URL?) { self.home = home; self.claudeHome = claudeHome }
+    private let openCodeHome: URL?
+    init(home: URL, claudeHome: URL?, openCodeHome: URL?) { self.home = home; self.claudeHome = claudeHome; self.openCodeHome = openCodeHome }
     func load(now: Date, calendar: Calendar) throws -> LoadedUsage {
         let pricing = try PricingCatalog.load()
-        let scan = try scanner.scan(codexHome: home, claudeHome: claudeHome)
+        let scan = try scanner.scan(codexHome: home, claudeHome: claudeHome, openCodeHome: openCodeHome)
         return LoadedUsage(summary: SummaryBuilder.build(events: scan.events, now: now, calendar: calendar, pricing: pricing),
                            diagnostics: scan.diagnostics, fileCount: scan.fileCount, verifiedAt: pricing.verifiedAt)
     }
@@ -31,8 +32,8 @@ actor UsageLoader {
     @Published private(set) var pricingDate: String?
     private let loader: UsageLoader
 
-    init(home: URL, claudeHome: URL? = nil) { loader = UsageLoader(home: home, claudeHome: claudeHome) }
-    convenience init() { self.init(home: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome()) }
+    init(home: URL, claudeHome: URL? = nil, openCodeHome: URL? = nil) { loader = UsageLoader(home: home, claudeHome: claudeHome, openCodeHome: openCodeHome) }
+    convenience init() { self.init(home: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), openCodeHome: AppModel.resolveOpenCodeHome()) }
 
     nonisolated static func resolveHome(environment: [String: String] = ProcessInfo.processInfo.environment,
                                         userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
@@ -47,6 +48,17 @@ actor UsageLoader {
         if override == "~" { return userHome }
         if override.hasPrefix("~/") { return userHome.appendingPathComponent(String(override.dropFirst(2))) }
         return URL(fileURLWithPath: override, isDirectory: true)
+    }
+    nonisolated static func resolveOpenCodeHome(environment: [String: String] = ProcessInfo.processInfo.environment,
+                                                userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        guard let dataHome = environment["XDG_DATA_HOME"], !dataHome.isEmpty else {
+            return userHome.appendingPathComponent(".local/share/opencode")
+        }
+        let root: URL
+        if dataHome == "~" { root = userHome }
+        else if dataHome.hasPrefix("~/") { root = userHome.appendingPathComponent(String(dataHome.dropFirst(2))) }
+        else { root = URL(fileURLWithPath: dataHome, isDirectory: true) }
+        return root.appendingPathComponent("opencode")
     }
     func refresh() async {
         guard !isRefreshing else { return }

@@ -42,6 +42,8 @@ public struct TokenUsage: Equatable, Sendable {
 
 public struct UsageEvent: Sendable {
     public var claudeUsage: ClaudeTokenUsage? = nil
+    public var openCodeUsage: OpenCodeTokenUsage? = nil
+    public var openCodeProvider: String? = nil
     public var requestID: String? = nil
     public var identity: String
     public var sessionID: String

@@ -43,11 +43,13 @@ public struct PricingCatalog: Sendable {
     public let verifiedAt: String
     private let threshold: Int64
     private let models: [String: ModelRates]
+    private let openCodePricing: OpenCodePricingCatalog?
 
-    public init(data: Data) throws {
+    public init(data: Data, openCodeData: Data? = nil) throws {
         let catalog = try JSONDecoder().decode(Catalog.self, from: data)
         guard catalog.longContextThreshold > 0, !catalog.models.isEmpty else { throw PricingError.invalidCatalog }
         source = catalog.source; verifiedAt = catalog.verifiedAt
+        openCodePricing = try openCodeData.map { try OpenCodePricingCatalog(data: $0) }
         threshold = catalog.longContextThreshold; models = catalog.models
     }
     public static func load() throws -> PricingCatalog {
@@ -58,12 +60,16 @@ public struct PricingCatalog: Sendable {
             url = Bundle.module.url(forResource: "pricing", withExtension: "json")
         }
         guard let url, FileManager.default.fileExists(atPath: url.path) else { throw PricingError.missingCatalog }
-        return try PricingCatalog(data: Data(contentsOf: url))
+        return try PricingCatalog(data: Data(contentsOf: url), openCodeData: OpenCodePricingCatalog.bundledData())
     }
     public func cost(for event: UsageEvent) -> CostResult {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
         if let issue = event.issue { return unpriced(issue) }
         if let usage = event.claudeUsage { return claudeCost(for: event, usage: usage) }
+        if let usage = event.openCodeUsage {
+            guard let openCodePricing else { return unpriced("OpenCode pricing catalog unavailable") }
+            return openCodePricing.cost(for: event, usage: usage)
+        }
         guard event.usage.isValid else { return unpriced("Invalid token counts") }
         guard let model = event.model, let modelRates = models[model] else { return unpriced("Model rate unavailable") }
         let usage = event.usage

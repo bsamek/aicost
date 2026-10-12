@@ -1,19 +1,29 @@
 #!/usr/bin/env python3
 """Independent read-only accounting check against the app's --report JSON."""
+import argparse
 import collections
 import datetime as dt
 from decimal import Decimal
 import json
 from pathlib import Path
 import sys
+import shutil
+import sqlite3
+import tempfile
 from zoneinfo import ZoneInfo
 
-report = json.loads(Path(sys.argv[1]).read_text())
+parser = argparse.ArgumentParser()
+parser.add_argument('report')
+parser.add_argument('codex_home', nargs='?', default=str(Path.home() / '.codex'))
+parser.add_argument('claude_home', nargs='?', default=str(Path.home() / '.claude'))
+parser.add_argument('--opencode-home', default=str(Path.home() / '.local/share/opencode'))
+args = parser.parse_args()
+report = json.loads(Path(args.report).read_text())
 now = dt.datetime.fromisoformat(report['asOf'].replace('Z', '+00:00'))
 tz = ZoneInfo('America/New_York')
 now_local = now.astimezone(tz)
 pricing = json.loads(Path('Sources/CostCore/Resources/pricing.json').read_text())
-home = Path(sys.argv[2]).expanduser() if len(sys.argv) > 2 else Path.home() / '.codex'
+home = Path(args.codex_home).expanduser()
 fields = ('input_tokens', 'cached_input_tokens', 'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens')
 sessions = []
 for root in ('sessions', 'archived_sessions'):
@@ -77,7 +87,7 @@ for meta, events, filename in sessions:
         for period in periods:
             row = expected[period][model or 'Unknown model']; row[0] += cost; row[1] += int(issue)
 # Claude's counters are request totals, not cumulative Codex snapshots.
-claude_home = Path(sys.argv[3]).expanduser() if len(sys.argv) > 3 else Path.home() / '.claude'
+claude_home = Path(args.claude_home).expanduser()
 messages = {}
 for path in sorted((claude_home / 'projects').rglob('*.jsonl')):
     for line in path.open():
@@ -119,6 +129,81 @@ for message in messages.values():
         Decimal(usage['output_tokens']) * Decimal(rate['output'])), Decimal(0)) / 1_000_000
     for period in ['month'] + (['today'] if local.date() == now_local.date() else []):
         row = expected[period][model]; row[0] += cost; row[1] += int(issue)
+# Independently inspect OpenCode metadata from a stable DB/WAL snapshot.
+opencode_home = Path(args.opencode_home).expanduser()
+source = opencode_home / 'opencode.db'
+if source.exists():
+    def stamps():
+        return {suffix: (p.stat().st_size, p.stat().st_mtime_ns, p.stat().st_ino)
+                for suffix in ('', '-wal') if (p := Path(str(source) + suffix)).exists()}
+    records = {}; modern_ids = set(); session_created = {}
+    with tempfile.TemporaryDirectory(prefix='aicost-opencode-verify-') as temp:
+        snapshot = Path(temp) / 'opencode.db'
+        for attempt in range(3):
+            before = stamps()
+            for suffix in ('', '-wal'):
+                target = Path(str(snapshot) + suffix)
+                target.unlink(missing_ok=True)
+                if suffix in before: shutil.copyfile(Path(str(source) + suffix), target)
+            if before == stamps(): break
+        else: raise RuntimeError('OpenCode database changed while copying')
+        with sqlite3.connect(snapshot.as_uri() + '?mode=ro', uri=True) as connection:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            for table in ('session', 'session_v2'):
+                if table in tables:
+                    for identity, created in connection.execute(f'SELECT id,time_created FROM {table}'):
+                        session_created[identity] = min(session_created.get(identity, created), created)
+            fields = ','.join(f"'{field}',json_extract(data,'$.{field}')" for field in ('role','model','providerID','modelID','tokens','time','status'))
+            for modern, table in ((True, 'session_message'), (False, 'message')):
+                if table not in tables: continue
+                where = "type='assistant' OR (type='compaction' AND json_valid(data) AND json_extract(data,'$.status')='completed')" if modern else "json_valid(data) AND json_extract(data,'$.role')='assistant'"
+                type_field = "'type',type," if modern else ""
+                query = f"SELECT id,session_id,CASE WHEN json_valid(data) THEN json_object({type_field}{fields}) ELSE '{{}}' END FROM {table} WHERE {where}"
+                for identity, session, raw in connection.execute(query):
+                    if not modern and identity in modern_ids: continue
+                    if modern: modern_ids.add(identity)
+                    try:
+                        data = json.loads(raw); usage = data['tokens']; timing = data['time']
+                        counts = [usage['input'], usage['cache']['read'], usage['cache']['write'], usage['output'], usage['reasoning']]
+                        if not identity or not session or any(type(n) is not int or n < 0 for n in counts) or sum(counts) > 2**63-1: continue
+                        created = timing['created']
+                        completed = timing.get('completed', created if modern and data.get('type') == 'compaction' and data.get('status') == 'completed' else None)
+                        if type(created) is not int or type(completed) is not int or not 0 <= created <= completed <= 253402300799000 or sum(counts) == 0: continue
+                        provider = data['model']['providerID'] if modern else data['providerID']
+                        model = data['model']['id'] if modern else data['modelID']
+                        issue = not provider or not model
+                        if not modern and counts[4]:
+                            if usage.get('total') == sum(counts) - counts[4] and counts[3] >= counts[4]: counts[3] -= counts[4]
+                            elif usage.get('total') != sum(counts): issue = True
+                    except (KeyError, TypeError, ValueError): continue
+                    row = dict(session=session, created=created, completed=completed, provider=provider, model=model, counts=counts, issue=issue)
+                    if identity in records:
+                        previous = records[identity]
+                        if any(previous[k] != row[k] for k in ('created','completed','provider','model','counts')): previous['issue'] = True
+                    else: records[identity] = row
+    def inherited(row): return session_created.get(row['session'], 0) > row['completed']
+    def copy_key(row): return row['created'], row['completed'], row['provider'], row['model'], tuple(row['counts'])
+    original = {copy_key(r): r['session'] for r in records.values() if not inherited(r)}
+    copies = {}; unique = []
+    for row in records.values():
+        key = copy_key(row)
+        if inherited(row):
+            if key in original and original[key] != row['session']: continue
+            if key in copies and copies[key] != row['session']: continue
+            copies[key] = row['session']
+        unique.append(row)
+    opencode_pricing = json.loads(Path('Sources/CostCore/Resources/opencode-pricing.json').read_text())['models']
+    for row in unique:
+        stamp = dt.datetime.fromtimestamp(row['created'] / 1000, dt.timezone.utc); local = stamp.astimezone(tz)
+        if stamp > now or (local.year, local.month) != (now_local.year, now_local.month): continue
+        name = row['provider'] + '/' + row['model']; rates = opencode_pricing.get(name)
+        counts = row['counts']; issue = row['issue'] or rates is None
+        rate = (rates or {}).get('short', {})
+        if rates and rates.get('long') and sum(counts[:3]) > rates['longContextThreshold']: rate = rates['long']
+        if (counts[1] and rate.get('cached') is None) or (counts[2] and rate.get('writes') is None): issue = True
+        cost = Decimal(0) if issue else (counts[0]*Decimal(rate['input']) + counts[1]*Decimal(rate.get('cached') or '0') + counts[2]*Decimal(rate.get('writes') or '0') + (counts[3]+counts[4])*Decimal(rate['output'])) / 1_000_000
+        for period in ['month'] + (['today'] if local.date() == now_local.date() else []):
+            item = expected[period][name]; item[0] += cost; item[1] += int(issue)
 for period in ('today', 'month'):
     observed = {row['model']: (Decimal(row['total']), row['unpriced']) for row in report[period]['models']}
     wanted = {k: tuple(v) for k,v in expected[period].items()}

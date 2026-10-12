@@ -1,6 +1,6 @@
 # Codex Cost
 
-A native macOS menu bar app that shows what your locally recorded Codex and Claude Code token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size.
+A native macOS menu bar app that shows what your locally recorded Codex, Claude Code, and OpenCode token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size.
 
 ## Build and run
 
@@ -27,7 +27,7 @@ GitHub Actions runs both `CostCoreTests` and `AppTests` on pull requests and pus
 swift test --disable-xctest --enable-swift-testing
 ```
 
-All tests use synthetic fixtures and temporary directories; no local Codex or Claude Code logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job.
+All tests use synthetic fixtures and temporary directories; no local Codex, Claude Code, or OpenCode logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job.
 
 ## What the estimate includes
 
@@ -35,7 +35,7 @@ Reads `~/.codex/sessions` and `~/.codex/archived_sessions` without modifying the
 
 Prices are bundled in `Sources/CostCore/Resources/pricing.json`, with their source and verification date. Current Standard rates are applied to all displayed usage; this is not an exact historical bill. Long-context rates use recorded request input counts. There is no pricing link in the app and no network activity.
 
-Models without published rates are excluded from the panel and dollar totals. The diagnostic report retains their details. Nonzero cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
+Models without published rates are excluded from the panel and dollar totals. The diagnostic report retains their details. Nonzero Codex cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
 
 ## Alternate log location
 
@@ -60,3 +60,15 @@ Also reads `~/.claude/projects/**/*.jsonl`, including nested subagent transcript
 Claude input, cache reads, cache writes, and output are separate categories. Five-minute and one-hour writes use their recorded duration breakdown. The top-level usage counts are used once; nested `iterations` and thinking detail are not added again. Message IDs are deduplicated across all files, including inherited conversation copies, using the earliest recorded timestamp. A new message processing old conversation context is fresh usage and is counted. Conflicting usage/model/request IDs, missing cache-write durations, and invalid duration totals remain unpriced with diagnostics. Records lacking a stable message ID or valid counts/timestamp are skipped and diagnosed.
 
 Bundled Claude rates cover Opus 5 and 5.5, Opus 4.8, Fable 5 and 5.1, Sonnet 5.5, and Haiku 5.5. Rates are Standard global API equivalents, applied to all displayed usage. Haiku 5.5's 100,000-token threshold includes uncached input, cache reads, and cache writes. Other models, including third-party models routed through Claude Code, remain unpriced. Missing/deleted transcripts, unrecorded requests, server-side tool fees, fast-mode premiums, geography premiums, and negotiated discounts are outside coverage. The local transcript schema is not a stable billing API; older logs without duration detail cannot fully price nonzero cache writes.
+
+## OpenCode coverage
+
+Reads `~/.local/share/opencode/opencode.db`; `XDG_DATA_HOME` overrides the `.local/share` root. Finder has the same environment caveat described above. The app copies a stable database and any WAL into a private temporary directory, then opens only that snapshot. It never opens the source with SQLite, creates its sidecars, checkpoints it, or reads credentials. Temporary copies are removed after each scan, including failures. A database that keeps changing during three copy attempts produces a refresh error while retaining the previous successful totals.
+
+Supports the current `session_message` assistant projection and legacy SQLite `message` rows. Modern IDs take precedence over their migration sources. It counts each completed assistant message once, including tool-call continuations, subagents, and completed compaction requests, using the original creation date. It does not sum message parts, session totals, or event history. Input, cache reads, cache writes, visible output, and reasoning are independent categories; reasoning is priced as output once. Older legacy reasoning requires a recorded total that resolves whether output already includes it; ambiguous records stay unpriced. Malformed counts, incomplete messages, failed compaction without model attribution, and missing identities are skipped and diagnosed.
+
+OpenCode forks can copy messages under new IDs. A record predating its owning session is recognized as inherited only when its exact original creation/completion milliseconds, provider, model, and every token category match a record in another session. Independent calls with identical usage remain separate. Deleted originals can be represented by one matching inherited copy. The scanner cannot identify inherited history after timestamps or usage metadata have been rewritten.
+
+Rows retain `provider/model` names. Direct `openai` requests use the bundled Standard OpenAI catalog, including verified cache-write rates. The separate `opencode-pricing.json` catalog uses [OpenCode Console's published gateway rates](https://dev.opencode.ai/v2/docs/console/models), verified October 12, 2026: GPT 6/6.1 and 5.6 families, GPT 5.5/5.4, GPT 5.4 Mini/Nano, GPT 5.3 Codex, GPT 5.2/5.1/5; Claude Fable 5/5.1, Opus 5/5.5 and 4.5–4.8, Sonnet 5/5.5 and 4.5/4.6, Haiku 4.5/5.5; Gemini 3 Flash, Kimi K2.6, and currently free Big Pickle. Context tiers include all input categories. Missing cache rates remain unpriced; zero published prices count as priced.
+
+Fireworks (`fireworks-ai`) Standard rates also cover the exact `accounts/fireworks/models/deepseek-v4p1-flash` and `accounts/fireworks/models/glm-5p3-flash` IDs, verified against the [current pricing table](https://docs.fireworks.ai/serverless/pricing) and linked model pages on October 12, 2026. DeepSeek V4.1 Flash is $0.30/$0.006/$1.20 and GLM 5.3 Flash is $0.15/$0.03/$0.50 per million uncached input/cached input/output tokens. Nonzero writes without a published rate stay unpriced. Other provider/model combinations, including older Fireworks models, OpenRouter, custom endpoints, and OpenCode Go (`opencode-go`), remain unpriced rather than borrowing a similarly named model's rate or trusting recorded cost. The diagnostic report includes the provider/model and explicit reasons. Current rates are applied to all displayed history; subscription charges, Priority/Fast mode and regional premiums, negotiated rates, payment fees, unrecorded title-generation calls, non-token tools, deleted data, pre-SQLite JSON storage, and future schema changes are outside coverage. Primary schema/accounting references: [token categories](https://github.com/anomalyco/opencode/blob/dev/packages/schema/src/token-usage.ts), [usage pricing](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/usage.ts), and [fork projection](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/projector.ts), and [legacy fork copying](https://github.com/anomalyco/opencode/blob/v1.2.27/packages/opencode/src/session/index.ts).

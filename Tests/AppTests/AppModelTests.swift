@@ -3,6 +3,32 @@ import Testing
 @testable import CodexCost
 
 @MainActor struct AppModelTests {
+    @Test func addsOpenCodeToLoaderTotals() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let milliseconds = Int64(Date().addingTimeInterval(-10).timeIntervalSince1970 * 1000)
+        let data = """
+        {"model":{"providerID":"opencode","id":"claude-sonnet-4-6"},"tokens":{"input":1000,"output":0,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":\(milliseconds),"completed":\(milliseconds + 100)}}
+        """
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [root.appendingPathComponent("opencode.db").path,
+                             "CREATE TABLE session_message(id TEXT,session_id TEXT,type TEXT,data TEXT); INSERT INTO session_message VALUES ('m','s','assistant','\(data)');"]
+        try process.run(); process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        let model = AppModel(home: root, openCodeHome: root)
+        await model.refresh()
+        #expect(model.summary?.today.total == Decimal(string: "0.003"))
+        #expect(model.summary?.month.total == Decimal(string: "0.003"))
+        #expect(model.summary?.today.models.first?.model == "opencode/claude-sonnet-4-6")
+        #expect(model.fileCount == 1)
+        #expect(model.error == nil)
+    }
+    @Test func openCodeHomeUsesXDGDataHome() {
+        let home = URL(fileURLWithPath: "/Users/example")
+        #expect(AppModel.resolveOpenCodeHome(environment: [:], userHome: home).path == "/Users/example/.local/share/opencode")
+        #expect(AppModel.resolveOpenCodeHome(environment: ["XDG_DATA_HOME": "~/data"], userHome: home).path == "/Users/example/data/opencode")
+    }
     @Test func combinesClaudeAndCodexUsage() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let codex = root.appendingPathComponent("codex")
