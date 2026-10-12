@@ -17,6 +17,7 @@ struct ModelOrder: Comparable {
         let name = String(parts.last ?? "")
         switch namespace {
         case "anthropic", "fireworks", "opencode", "opencode-go", "openrouter": provider = namespace!
+        case "fireworks-ai": provider = "fireworks"
         case "openai", "openai-codex": provider = "openai"
         case nil where name.hasPrefix("claude-"): provider = "anthropic"
         case nil where name.hasPrefix("gpt-") || Self.capture("^o[0-9]", in: name) != nil: provider = "openai"
