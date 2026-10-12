@@ -1,0 +1,13 @@
+{
+  "source": "https://docs.fireworks.ai/serverless/pricing ; https://fireworks.ai/models/deepseek-ai/deepseek-v4p1-flash ; https://fireworks.ai/models/fireworks/glm-5p3-flash",
+  "verifiedAt": "2026-10-12",
+  "longContextThreshold": 272000,
+  "models": {
+    "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": {
+      "short": { "input": "0.30", "cached": "0.006", "output": "1.20" }
+    },
+    "fireworks/accounts/fireworks/models/glm-5p3-flash": {
+      "short": { "input": "0.15", "cached": "0.03", "output": "0.50" }
+    }
+  }
+}

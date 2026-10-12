@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
+    inputs:
+      release_version:
+        description: Numeric version or v-prefixed version tag used for the validated ZIP
+        type: string
+        default: '0.0.0'
+      release_build:
+        description: Bundle build number
+        type: string
+        default: '0'
 
 permissions:
   contents: read
@@ -20,3 +30,24 @@ jobs:
         run: swift --version
       - name: Run all Swift Testing tests
         run: swift test --disable-xctest --enable-swift-testing
+
+  package:
+    name: Universal app and ZIP validation
+    needs: test
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      SWIFT_TOOL: swift
+      RELEASE_VERSION: ${{ inputs.release_version || '0.0.0' }}
+      RELEASE_BUILD: ${{ inputs.release_build || '0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build, package and verify universal app
+        run: scripts/package-release.sh "$RELEASE_VERSION" "$RELEASE_BUILD"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: build/release/
+          if-no-files-found: error
+          retention-days: 7

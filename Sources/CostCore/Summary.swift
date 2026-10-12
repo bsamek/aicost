@@ -25,7 +25,7 @@ public enum SummaryBuilder {
             var rows: [String: ModelCost] = [:]
             var result = PeriodCost()
             for event in events where event.timestamp >= interval.start && event.timestamp < interval.end && event.timestamp <= now {
-                let name = event.model ?? "Unknown model"
+                let name = (event.piProvider ?? event.openCodeProvider).map { $0 + "/" + (event.model ?? "Unknown model") } ?? (event.model ?? "Unknown model")
                 var row = rows[name] ?? ModelCost(model: name)
                 let cost = pricing.cost(for: event)
                 if let usd = cost.usd {
@@ -36,9 +36,8 @@ public enum SummaryBuilder {
                 }
                 rows[name] = row
             }
-            result.models = rows.values.sorted {
-                $0.total == $1.total ? $0.model < $1.model : $0.total > $1.total
-            }
+            result.models = rows.values.map { (row: $0, order: ModelOrder(model: $0.model)) }
+                .sorted { $0.order < $1.order }.map(\.row)
             return result
         }
         return CostSummary(today: period(day), month: period(month))

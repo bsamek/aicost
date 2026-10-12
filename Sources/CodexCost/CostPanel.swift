@@ -1,8 +1,14 @@
 import SwiftUI
 import CostCore
 
+// Select the property wrapper explicitly on SDKs that also export a State macro.
+private typealias PanelState<Value> = SwiftUI.State<Value>
+
 struct CostPanel: View {
     @ObservedObject var model: AppModel
+    let restart: () -> Bool
+    let quit: () -> Void
+    @PanelState private var isRestarting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -14,6 +20,16 @@ struct CostPanel: View {
                 Text(model.error == nil ? "Reading usage…" : "Usage unavailable")
                     .foregroundStyle(.secondary)
             }
+            Divider()
+            HStack(spacing: 12) {
+                Spacer()
+                Button("Restart") {
+                    isRestarting = true
+                    isRestarting = restart()
+                }
+                Button("Quit", action: quit)
+            }
+            .disabled(isRestarting)
         }
         .font(.system(size: 13))
         .padding(16)
@@ -39,7 +55,12 @@ struct CostPanel: View {
     }
 
     private func displayModel(_ model: String) -> String {
-        switch model {
+        if model.hasPrefix("openai-codex/") { return "Pi · " + displayModel(String(model.dropFirst("openai-codex/".count))) }
+        if model.hasPrefix("openai/") { return "OpenAI · " + displayModel(String(model.dropFirst("openai/".count))) }
+        if model.hasPrefix("anthropic/") { return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count))) }
+        return switch model {
+        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": "DeepSeek V4.1 Flash"
+        case "fireworks/accounts/fireworks/models/glm-5p3-flash": "GLM 5.3 Flash"
         case "gpt-6.1-sol": "GPT-6.1 Sol"
         case "gpt-6-sol": "GPT-6 Sol"
         case "gpt-6-astra": "GPT-6 Astra"
