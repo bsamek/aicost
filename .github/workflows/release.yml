@@ -1,0 +1,40 @@
+name: macOS release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/tests.yml
+    with:
+      release_version: ${{ github.ref_name }}
+      release_build: ${{ format('{0}', github.run_number) }}
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-release
+          path: release
+      - name: Publish validated ZIP and checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          # No Release exists until both tests and extracted-bundle checks pass.
+          gh release create "$RELEASE_TAG" release/*.zip release/*.sha256 \
+            --verify-tag --title "Codex Cost $RELEASE_TAG" \
+            --notes-file release/RELEASE-NOTES.md
