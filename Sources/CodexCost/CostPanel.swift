@@ -39,7 +39,12 @@ struct CostPanel: View {
     }
 
     private func displayModel(_ model: String) -> String {
-        switch model {
+        if model.hasPrefix("openai-codex/") { return "Pi · " + displayModel(String(model.dropFirst("openai-codex/".count))) }
+        if model.hasPrefix("openai/") { return "OpenAI · " + displayModel(String(model.dropFirst("openai/".count))) }
+        if model.hasPrefix("anthropic/") { return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count))) }
+        return switch model {
+        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": "DeepSeek V4.1 Flash"
+        case "fireworks/accounts/fireworks/models/glm-5p3-flash": "GLM 5.3 Flash"
         case "gpt-6.1-sol": "GPT-6.1 Sol"
         case "gpt-6-sol": "GPT-6 Sol"
         case "gpt-6-astra": "GPT-6 Astra"

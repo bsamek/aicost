@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Independent read-only accounting check against the app's --report JSON."""
+import argparse
 import collections
 import datetime as dt
 from decimal import Decimal
@@ -8,12 +9,18 @@ from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo
 
-report = json.loads(Path(sys.argv[1]).read_text())
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('report')
+parser.add_argument('codex_home', nargs='?')
+parser.add_argument('claude_home', nargs='?')
+parser.add_argument('--pi-home')
+args = parser.parse_args()
+report = json.loads(Path(args.report).read_text())
 now = dt.datetime.fromisoformat(report['asOf'].replace('Z', '+00:00'))
 tz = ZoneInfo('America/New_York')
 now_local = now.astimezone(tz)
 pricing = json.loads(Path('Sources/CostCore/Resources/pricing.json').read_text())
-home = Path(sys.argv[2]).expanduser() if len(sys.argv) > 2 else Path.home() / '.codex'
+home = Path(args.codex_home).expanduser() if args.codex_home else Path.home() / '.codex'
 fields = ('input_tokens', 'cached_input_tokens', 'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens')
 sessions = []
 for root in ('sessions', 'archived_sessions'):
@@ -77,7 +84,7 @@ for meta, events, filename in sessions:
         for period in periods:
             row = expected[period][model or 'Unknown model']; row[0] += cost; row[1] += int(issue)
 # Claude's counters are request totals, not cumulative Codex snapshots.
-claude_home = Path(sys.argv[3]).expanduser() if len(sys.argv) > 3 else Path.home() / '.claude'
+claude_home = Path(args.claude_home).expanduser() if args.claude_home else Path.home() / '.claude'
 messages = {}
 for path in sorted((claude_home / 'projects').rglob('*.jsonl')):
     for line in path.open():
@@ -119,6 +126,67 @@ for message in messages.values():
         Decimal(usage['output_tokens']) * Decimal(rate['output'])), Decimal(0)) / 1_000_000
     for period in ['month'] + (['today'] if local.date() == now_local.date() else []):
         row = expected[period][model]; row[0] += cost; row[1] += int(issue)
+# Pi usage is per-request, with cache categories disjoint from uncached input.
+pi_home = Path(args.pi_home).expanduser() if args.pi_home else Path.home() / '.pi' / 'agent'
+pi_pricing = json.loads(Path('Sources/CostCore/Resources/pi-pricing.json').read_text())
+pi_messages = {}
+for path in sorted((pi_home / 'sessions').rglob('*.jsonl')):
+    supported = False
+    for line in path.open():
+        try:
+            record = json.loads(line)
+            if record.get('type') == 'session':
+                supported = record.get('version') in (2, 3) and bool(record.get('id'))
+                continue
+            message = record.get('message', {})
+            if not supported or record.get('type') != 'message' or message.get('role') != 'assistant' or 'usage' not in message: continue
+            provider = message['provider']; model = message.get('responseModel') or message['model']
+            usage = message['usage']; entry = record['id']; milliseconds = message['timestamp']
+            counts = [usage[k] for k in ('input', 'cacheRead', 'cacheWrite', 'output')]
+            hour = usage.get('cacheWrite1h'); reasoning = usage.get('reasoning')
+            if not entry or not provider or not model or type(milliseconds) is not int or not 0 <= milliseconds <= 253402300799999: continue
+            if any(type(n) is not int or not 0 <= n <= 2**63-1 for n in counts) or sum(counts[:3]) > 2**63-1: continue
+            if hour is not None and (type(hour) is not int or not 0 <= hour <= usage['cacheWrite']): continue
+            if reasoning is not None and (type(reasoning) is not int or not 0 <= reasoning <= usage['output']): continue
+            stamp = dt.datetime.fromtimestamp(milliseconds / 1000, dt.timezone.utc)
+            response = message.get('responseId')
+            identity = (provider, 'response', response) if response else (provider, 'entry', entry, milliseconds, model)
+        except (ValueError, KeyError, TypeError, OverflowError): continue
+        # cost/totalTokens are derived fields and must not affect duplicate identity.
+        normalized = tuple(counts) + (hour, reasoning)
+        if identity in pi_messages:
+            previous = pi_messages[identity]
+            previous['conflict'] |= previous['counts'] != normalized or previous['model'] != model
+            previous['stamp'] = min(previous['stamp'], stamp)
+        else:
+            pi_messages[identity] = dict(provider=provider, model=model, usage=usage, counts=normalized, stamp=stamp, conflict=False)
+for message in pi_messages.values():
+    stamp = message['stamp']; local = stamp.astimezone(tz)
+    if stamp > now or (local.year, local.month) != (now_local.year, now_local.month): continue
+    provider = message['provider']; model = message['model']; usage = message['usage']
+    rates = None
+    if provider == 'anthropic' and model.startswith('claude-'): rates = pricing['models'].get(model)
+    elif provider in ('openai', 'openai-codex') and not model.startswith('claude-'): rates = pricing['models'].get(model)
+    elif provider == 'fireworks': rates = pi_pricing['models'].get(provider + '/' + model)
+    issue = message['conflict'] or not rates
+    rate = (rates or {}).get('short', {})
+    context = usage['input'] + usage['cacheRead'] + usage['cacheWrite']
+    if rates and rates.get('long') and context > rates.get('longContextThreshold', pricing['longContextThreshold']): rate = rates['long']
+    if usage['cacheRead'] and rate.get('cached') is None: issue = True
+    write_cost = Decimal(0)
+    if provider == 'anthropic' and usage['cacheWrite']:
+        hour = usage.get('cacheWrite1h')
+        if hour is None: issue = True
+        else:
+            five = usage['cacheWrite'] - hour
+            if (five and rate.get('writes5m') is None) or (hour and rate.get('writes1h') is None): issue = True
+            write_cost = Decimal(five) * Decimal(rate.get('writes5m') or '0') + Decimal(hour) * Decimal(rate.get('writes1h') or '0')
+    elif usage['cacheWrite']:
+        if rate.get('writes') is None: issue = True
+        write_cost = Decimal(usage['cacheWrite']) * Decimal(rate.get('writes') or '0')
+    cost = Decimal(0) if issue else (Decimal(usage['input']) * Decimal(rate['input']) + Decimal(usage['cacheRead']) * Decimal(rate.get('cached') or '0') + write_cost + Decimal(usage['output']) * Decimal(rate['output'])) / 1_000_000
+    for period in ['month'] + (['today'] if local.date() == now_local.date() else []):
+        row = expected[period][provider + '/' + model]; row[0] += cost; row[1] += int(issue)
 for period in ('today', 'month'):
     observed = {row['model']: (Decimal(row['total']), row['unpriced']) for row in report[period]['models']}
     wanted = {k: tuple(v) for k,v in expected[period].items()}

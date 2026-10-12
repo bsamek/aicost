@@ -29,6 +29,33 @@ import Testing
         #expect(model.fileCount == 2)
         #expect(model.error == nil)
     }
+    @Test func piUsageFlowsIntoAppAlongsideExistingIntegrations() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let codex = root.appendingPathComponent("codex")
+        let pi = root.appendingPathComponent("pi")
+        try FileManager.default.createDirectory(at: codex.appendingPathComponent("sessions"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: pi.appendingPathComponent("sessions"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let milliseconds = Int64(Date().addingTimeInterval(-10).timeIntervalSince1970 * 1000)
+        let records = """
+        {"type":"session","version":3,"id":"session"}
+        {"type":"message","id":"entry","message":{"role":"assistant","provider":"openai-codex","model":"gpt-6.1-sol","timestamp":\(milliseconds),"usage":{"input":1000,"cacheRead":0,"cacheWrite":0,"output":0}}}
+        """
+        try Data(records.utf8).write(to: pi.appendingPathComponent("sessions/a.jsonl"))
+        let model = AppModel(home: codex, piHome: pi)
+        await model.refresh()
+        #expect(model.summary?.today.total == Decimal(string: "0.002"))
+        #expect(model.summary?.month.total == Decimal(string: "0.002"))
+        #expect(model.summary?.today.models.first?.model == "openai-codex/gpt-6.1-sol")
+        #expect(model.fileCount == 1)
+        #expect(model.error == nil)
+    }
+    @Test func piHomeOverrideResolvesTildeAndEmptyDefaults() {
+        let home = URL(fileURLWithPath: "/Users/example")
+        #expect(AppModel.resolvePiHome(environment: [:], userHome: home).path == "/Users/example/.pi/agent")
+        #expect(AppModel.resolvePiHome(environment: ["PI_CODING_AGENT_DIR": ""], userHome: home).path == "/Users/example/.pi/agent")
+        #expect(AppModel.resolvePiHome(environment: ["PI_CODING_AGENT_DIR": "~/custom"], userHome: home).path == "/Users/example/custom")
+    }
     @Test func claudeHomeOverrideResolvesTilde() {
         let home = URL(fileURLWithPath: "/Users/example")
         #expect(AppModel.resolveClaudeHome(environment: [:], userHome: home).path == "/Users/example/.claude")

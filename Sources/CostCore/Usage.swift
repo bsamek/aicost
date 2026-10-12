@@ -41,6 +41,8 @@ public struct TokenUsage: Equatable, Sendable {
 }
 
 public struct UsageEvent: Sendable {
+    public var piUsage: PiTokenUsage? = nil
+    public var piProvider: String? = nil
     public var claudeUsage: ClaudeTokenUsage? = nil
     public var requestID: String? = nil
     public var identity: String

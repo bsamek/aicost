@@ -11,12 +11,12 @@ enum CostReport {
             now = date
         } else { now = Date() }
         let pricing = try PricingCatalog.load()
-        let scan = try UsageScanner().scan(codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome())
+        let scan = try UsageScanner().scan(codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), piHome: AppModel.resolvePiHome())
         let summary = SummaryBuilder.build(events: scan.events, now: now, calendar: .current, pricing: pricing)
         func period(_ cost: PeriodCost) -> [String: Any] {
             ["total": NSDecimalNumber(decimal: cost.total).stringValue,
              "unpriced": cost.unpricedCount,
-             "models": cost.models.map { ["model": $0.model, "total": NSDecimalNumber(decimal: $0.total).stringValue, "unpriced": $0.unpricedCount] as [String: Any] }]
+             "models": cost.models.map { ["model": $0.model, "total": NSDecimalNumber(decimal: $0.total).stringValue, "unpriced": $0.unpricedCount, "reasons": $0.reasons.sorted()] as [String: Any] }]
         }
         let report: [String: Any] = ["today": period(summary.today), "month": period(summary.month),
                                     "diagnostics": scan.diagnostics, "files": scan.fileCount, "asOf": ISO8601DateFormatter().string(from: now)]
