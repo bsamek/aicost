@@ -1,123 +1,106 @@
 # Codex Cost
 
-A native macOS menu bar app that shows what your locally recorded Codex, Claude Code, Pi, and OpenCode token usage would cost at Standard API rates. The menu bar shows today's total; click it for Today and This Month totals and a breakdown by model. It refreshes every 30 seconds. The panel shows both periods in full with a consistent font size. Model rows use the same order in Today and This Month, independent of their costs: serving provider alphabetically, then model family alphabetically, then newer numeric versions first (for example, Sol 6.10 before 6.9, or Opus 5.5 before 5). Recognized families are Claude Fable/Haiku/Opus/Sonnet, OpenAI Astra/GPT/Luna/o-series/Sol/Terra, and DeepSeek/GLM. Provider-prefixed IDs use the serving provider, including Fireworks, OpenCode, OpenCode Go, and OpenRouter; `openai-codex` shares OpenAI's ordering while keeping its row identity. Equal versions use the full model ID alphabetically. Unfamiliar models appear last with the same deterministic ID fallback. Sorting does not change totals or which priced rows are visible.
+See the API-equivalent cost of your coding agents in the macOS menu bar. Codex Cost reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
 
-## Download and install
+![Menu bar displaying today's estimated API-equivalent cost](docs/images/menu-bar.png)
 
-Versioned downloads are published on [GitHub Releases](https://github.com/bsamek/aicost/releases) when a maintainer pushes a `vMAJOR.MINOR.PATCH` tag. There may be no downloadable version until the first tag is published. Download `Codex-Cost-VERSION-universal.zip`: it includes both Apple Silicon (`arm64`) and Intel (`x86_64`) code and requires **macOS 13 or later**. Swift tools and an API key are not needed to run a download.
+![Expanded Codex Cost panel showing Today and This Month totals with a breakdown across GPT and Claude models](docs/images/usage-panel.png)
 
-1. Unzip the download and drag `Codex Cost.app` into Applications.
-2. Open the app. Its total appears in the menu bar; there is no Dock icon or main window.
-3. If macOS blocks it, try opening it once, then go to **System Settings → Privacy & Security → Open Anyway** and confirm Open. Only do this for a download you trust; [Apple explains the exception](https://support.apple.com/102445). Do not disable Gatekeeper globally.
+*Native app views captured with synthetic usage data.*
 
-Downloads are ad-hoc signed, **not Developer ID signed or notarized by Apple**. The signature supports executable integrity checks but does not establish the publisher's identity. The ZIP's adjacent `.sha256` file checks download integrity: put both in the same folder and run `shasum -a 256 -c Codex-Cost-VERSION-universal.zip.sha256` there. A checksum does not authenticate a publisher either.
+## Features
 
-To update, quit the running copy (Activity Monitor can stop `CodexCost`), replace the app in Applications, and open the new copy. Local usage logs are stored outside the app. Open it again after restarting your Mac.
+- Today's total at a glance; click for Today and This Month totals and a breakdown by model.
+- Automatic refresh every 30 seconds, using your Mac's timezone for days and calendar months.
+- Local, read-only processing. No API key, account connection, third-party dependencies, or network activity.
+- Restart and Quit controls in the panel.
+- A read-only JSON report for diagnostics and reproducible accounting.
 
-## Build and run
+These are **token-cost estimates**, not your subscription bill or an exact historical API invoice. Subscription usage counts when it is recorded locally; your subscription payment is unaffected.
 
-Requires macOS 13 or later and Apple's Swift Command Line Tools. No third-party dependencies or API key.
+## Requirements
+
+- macOS 13 or later.
+- Locally recorded usage from at least one supported agent.
+- To build from source: Swift 6 and Apple's Command Line Tools or Xcode.
+
+## Install and run
+
+**No versioned release has been published yet.** Build from source using the steps below. The [release workflow](.github/workflows/release.yml) will publish a universal Apple Silicon + Intel ZIP when a maintainer tags a validated version; see [GitHub Releases](https://github.com/bsamek/aicost/releases) for future downloads.
+
+When a release is available, download `Codex-Cost-VERSION-universal.zip`, unzip it, and drag `Codex Cost.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Codex-Cost-VERSION-universal.zip.sha256`; it does not establish publisher identity.
+
+Build from a checkout:
 
 ```sh
+git clone https://github.com/bsamek/aicost.git
+cd aicost
 bash scripts/build-app.sh
 open 'build/Codex Cost.app'
 ```
 
-The build uses the Mac's architecture and ad-hoc signs the bundle locally. You can keep it in this folder or copy it into Applications. To start it after restarting your Mac, open the app again.
+The build uses your Mac's architecture and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. To update, use **Quit** in the panel, replace the app, and open the new copy; local usage logs live outside the app.
 
-Tests:
+## Usage and log locations
 
-```sh
-scripts/swift-tool.sh test --disable-xctest
-```
+Open the app, then click its dollar total in the menu bar. Both periods group models by provider and family, with newer numeric versions first. Unknown providers and families appear last by model ID. Only models with priced usage appear in the panel; use the diagnostic report to inspect skipped or unpriced records.
 
-`scripts/swift-tool.sh` uses native SwiftPM and a local copy of public package interfaces to accommodate this Mac's inconsistent Command Line Tools installation. System files remain untouched. A normal Swift 6 installation can also use `swift test --disable-xctest` and `swift build -c release`.
+| Agent | Default local source | Override |
+| --- | --- | --- |
+| Codex | `~/.codex/sessions` and `~/.codex/archived_sessions` | `CODEX_HOME` |
+| Claude Code | `~/.claude/projects/**/*.jsonl`, including nested subagents | `CLAUDE_CONFIG_DIR` |
+| Pi | `~/.pi/agent/sessions/**/*.jsonl` (v2/v3 sessions) | `PI_CODING_AGENT_DIR` |
+| OpenCode | `~/.local/share/opencode/opencode.db` | `XDG_DATA_HOME` (the app appends `/opencode`) |
 
-GitHub Actions runs both `CostCoreTests` and `AppTests` on pull requests and pushes to `main` (including merges) using macOS 15 and Xcode 16.4's bundled Swift 6 toolchain. CI uses the standard toolchain directly, without the local Command Line Tools workaround:
-
-```sh
-swift test --disable-xctest --enable-swift-testing
-```
-
-All tests use synthetic fixtures and temporary directories; no local Codex, Claude Code, Pi, or OpenCode logs, API credentials, or account access are required. Compilation errors and test failures fail the CI job. After tests pass, CI also builds both architectures, packages a universal ZIP, verifies version/deployment metadata and every bundled resource, and launches a relocated copy of the extracted app with isolated log roots. PR builds use version `0.0.0` and are workflow artifacts, not public releases.
-
-## What the estimate includes
-
-Reads `~/.codex/sessions` and `~/.codex/archived_sessions` without modifying them. Input, cached input, and output are priced separately. Reasoning tokens are included in output. Cumulative counters, repeated snapshots, counter resets, archived copies, and identifiable inherited fork history are handled without summing duplicate usage. Days and calendar months use your Mac's timezone.
-
-Prices are bundled in `Sources/CostCore/Resources/pricing.json`, with their source and verification date. Current Standard rates are applied to all displayed usage; this is not an exact historical bill. Long-context rates use recorded request input counts. There is no pricing link in the app and no network activity.
-
-Models without published rates are excluded from the panel and dollar totals. The diagnostic report retains their details. Nonzero Codex cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
-
-## Alternate log location
-
-The app honors `CODEX_HOME` when launched with that environment variable. Finder launches usually do not inherit shell environment variables. For a custom location:
+Finder launches usually do not inherit shell environment variables. For custom roots, launch the executable from a shell:
 
 ```sh
-CODEX_HOME=/absolute/path/to/codex 'build/Codex Cost.app/Contents/MacOS/CodexCost'
+CODEX_HOME=/absolute/path/to/codex \
+CLAUDE_CONFIG_DIR=/absolute/path/to/claude \
+'build/Codex Cost.app/Contents/MacOS/CodexCost'
 ```
 
-## Read-only diagnostic report
+The app reads usage and session metadata without changing logs. OpenCode is scanned through a private temporary copy of its database and committed WAL, removed after each scan. It does not access authentication files, send data to a server, or print conversation text in reports.
+
+## Pricing and coverage
+
+Bundled catalogs record rate sources and verification dates: [`pricing.json`](Sources/CostCore/Resources/pricing.json), [`pi-pricing.json`](Sources/CostCore/Resources/pi-pricing.json), and [`opencode-pricing.json`](Sources/CostCore/Resources/opencode-pricing.json). Sources include [OpenAI](https://developers.openai.com/api/docs/pricing), [Claude](https://platform.claude.com/docs/en/about-claude/pricing), [Fireworks](https://docs.fireworks.ai/serverless/pricing), and [OpenCode Console](https://dev.opencode.ai/v2/docs/console/models).
+
+The bundled Standard rates apply to all displayed history. Input, cache usage, and output are priced separately; long-context tiers use recorded request input. Repeated counters, identifiable inherited history, and duplicate messages are handled within each agent's accounting format. Provider/model rows stay separate where provider-specific pricing matters.
+
+Unknown models and ambiguous usage are excluded from dollar totals. Missing/deleted logs, cloud-only or unrecorded requests, non-token tool charges, fast/priority modes, regional premiums, custom prices, and negotiated discounts are outside coverage. Local formats are not stable billing APIs, so estimates can differ from invoices and historical rates. See [accounting and pricing coverage](docs/accounting.md) for supported provider/model IDs, cache-write rules, deduplication, schema support, and other limits.
+
+## Diagnostic report
 
 ```sh
 'build/Codex Cost.app/Contents/MacOS/CodexCost' --report
 ```
 
-For a reproducible timestamp, add `--at 2026-10-11T02:00:00Z`. This emits the same accounting totals as the app without opening the UI. It reads only session metadata and usage; it does not print conversation text or access authentication files.
-
-## Claude Code coverage
-
-Also reads `~/.claude/projects/**/*.jsonl`, including nested subagent transcripts. `CLAUDE_CONFIG_DIR` overrides the `.claude` directory (with the same Finder environment caveat as `CODEX_HOME`). Subscription usage is included whenever it is recorded locally; the estimate does not represent your subscription bill.
-
-Claude input, cache reads, cache writes, and output are separate categories. Five-minute and one-hour writes use their recorded duration breakdown. The top-level usage counts are used once; nested `iterations` and thinking detail are not added again. Message IDs are deduplicated across all files, including inherited conversation copies, using the earliest recorded timestamp. A new message processing old conversation context is fresh usage and is counted. Conflicting usage/model/request IDs, missing cache-write durations, and invalid duration totals remain unpriced with diagnostics. Records lacking a stable message ID or valid counts/timestamp are skipped and diagnosed.
-
-Bundled Claude rates cover Opus 5 and 5.5, Opus 4.8, Fable 5 and 5.1, Sonnet 5.5, and Haiku 5.5. Rates are Standard global API equivalents, applied to all displayed usage. Haiku 5.5's 100,000-token threshold includes uncached input, cache reads, and cache writes. Other models, including third-party models routed through Claude Code, remain unpriced. Missing/deleted transcripts, unrecorded requests, server-side tool fees, fast-mode premiums, geography premiums, and negotiated discounts are outside coverage. The local transcript schema is not a stable billing API; older logs without duration detail cannot fully price nonzero cache writes.
-
-## Pi coverage
-
-Also reads `~/.pi/agent/sessions/**/*.jsonl` without changing the files or accessing `auth.json` or `models.json`. `PI_CODING_AGENT_DIR` overrides the `.pi/agent` directory (with the same Finder environment caveat). Default persisted v2/v3 sessions are supported; custom `--session`/`--session-dir` paths outside this tree, in-memory sessions, v1 logs, and future schema versions are outside coverage. Missing directories are empty; unreadable directories/files fail the refresh and preserve the last successful totals. Partial or malformed active lines are diagnosed, and completed lines are picked up on the next refresh.
-
-Pi's [session manager](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/session-manager.ts) persists assistant request records, model-attributed `usage` records, and optional usage on `compaction`/`branch_summary` records; its [usage types](https://github.com/earendil-works/pi/blob/main/packages/ai/src/types.ts) and [provider adapters](https://github.com/earendil-works/pi/tree/main/packages/ai/src/api) normalize uncached input, cache reads, cache writes, and output into separate categories. Reasoning is already included in output, and `totalTokens` and the recorded `usage.cost` are not added or used as billing authority. Assistant messages use the original request's millisecond timestamp; standalone usage and summary entries use their persisted ISO entry timestamp for day/month boundaries. All recorded branches are scanned, since requests on abandoned branches still consumed tokens. Model/provider identities are taken from each assistant message, with `responseModel` preferred when present, or from the explicit fields of a standalone `usage` entry. Compaction and branch-summary usage have no provider/model attribution in the upstream schema and may aggregate multiple calls. Valid unattributed usage stays report-visible as unpriced `Unknown model` entries with an explicit reason and diagnostic; nearby model-change records are not used to guess attribution.
-
-Provider response IDs, when available, are deduplicated globally across assistant and attributed auxiliary records within each provider; older records use the stable entry ID, original message timestamp, and provider. Model is excluded from identity so copies with conflicting model IDs count once and remain unpriced. Auxiliary records use entry type, stable ID, entry timestamp, and provider (or an unattributed namespace). Forked sessions preserve those entries. Fresh requests reading old conversation context count separately. Conflicting copies remain unpriced with diagnostics. Older logs lacking stable entry identity, valid counts, or a request timestamp are skipped and diagnosed; copies rewritten with new IDs and no provider response ID cannot be identified reliably.
-
-Supported pricing uses exact identifiers, with provider/model rows kept separate:
-
-- `openai` and `openai-codex`: the exact OpenAI model IDs already present in the bundled catalog, at Standard API equivalent rates, including verified cache-write rates where available. The full uncached + cached + write input determines the long-context tier. Subscription payment is unaffected.
-- `anthropic`: exact Claude model IDs already present in the bundled catalog. Nonzero cache writes require Pi's recorded `cacheWrite1h` split; the remainder is five-minute writes. Older logs missing that split remain unpriced.
-- `fireworks`: `accounts/fireworks/models/deepseek-v4p1-flash` and `accounts/fireworks/models/glm-5p3-flash`, using the [current Standard serverless pricing table](https://docs.fireworks.ai/serverless/pricing), verified October 12, 2026 and stored in `pi-pricing.json`. DeepSeek V4.1 Flash is $0.30/$0.006/$1.20 and GLM 5.3 Flash is $0.15/$0.03/$0.50 per million uncached input/cache-read/output tokens. The current pricing table takes precedence over older Fireworks FAQs and Pi's historical recorded cost. Nonzero cache writes are unpriced because Fireworks publishes no separate write rate for these models.
-
-OpenRouter records remain unpriced: Pi does not persist the serving route and OpenRouter's public model prices can vary by endpoint and time. Deprecated Fireworks `deepseek-v4-flash-0731`, other providers/models, custom price overrides, nonstandard tiers, geography premiums, dedicated deployments, negotiated rates, tools, and unrecorded requests are outside pricing coverage. Current supported rates are applied to all displayed usage, rather than reconstructing historical invoices. Unknown rates and accounting conflicts stay visible in `--report` as unpriced counts and per-model reasons; they are excluded from dollar totals and the panel's priced rows.
-
-## OpenCode coverage
-
-Reads `~/.local/share/opencode/opencode.db`; `XDG_DATA_HOME` overrides the `.local/share` root. Finder has the same environment caveat described above. The app copies a stable database and any WAL into a private temporary directory, then opens only that snapshot. It never opens the source with SQLite, creates its sidecars, checkpoints it, or reads credentials. Temporary copies are removed after each scan, including failures. A database that keeps changing during three copy attempts produces a refresh error while retaining the previous successful totals.
-
-Supports the current `session_message` assistant projection and legacy SQLite `message` rows. Modern IDs take precedence over their migration sources. It counts each completed assistant message once, including tool-call continuations, subagents, and completed compaction requests, using the original creation date. It does not sum message parts, session totals, or event history. Input, cache reads, cache writes, visible output, and reasoning are independent categories; reasoning is priced as output once. Older legacy reasoning requires a recorded total that resolves whether output already includes it; ambiguous records stay unpriced. Malformed counts, incomplete messages, failed compaction without model attribution, and missing identities are skipped and diagnosed.
-
-OpenCode forks can copy messages under new IDs. A record predating its owning session is recognized as inherited only when its exact original creation/completion milliseconds, provider, model, and every token category match a record in another session. Independent calls with identical usage remain separate. Deleted originals can be represented by one matching inherited copy. The scanner cannot identify inherited history after timestamps or usage metadata have been rewritten.
-
-Rows retain `provider/model` names. Direct `openai` requests use the bundled Standard OpenAI catalog, including verified cache-write rates. The separate `opencode-pricing.json` catalog uses [OpenCode Console's published gateway rates](https://dev.opencode.ai/v2/docs/console/models), verified October 12, 2026: GPT 6/6.1 and 5.6 families, GPT 5.5/5.4, GPT 5.4 Mini/Nano, GPT 5.3 Codex, GPT 5.2/5.1/5; Claude Fable 5/5.1, Opus 5/5.5 and 4.5–4.8, Sonnet 5/5.5 and 4.5/4.6, Haiku 4.5/5.5; Gemini 3 Flash, Kimi K2.6, and currently free Big Pickle. Context tiers include all input categories. Missing cache rates remain unpriced; zero published prices count as priced.
-
-Fireworks (`fireworks-ai`) Standard rates also cover the exact `accounts/fireworks/models/deepseek-v4p1-flash` and `accounts/fireworks/models/glm-5p3-flash` IDs, verified against the [current pricing table](https://docs.fireworks.ai/serverless/pricing) and linked model pages on October 12, 2026. DeepSeek V4.1 Flash is $0.30/$0.006/$1.20 and GLM 5.3 Flash is $0.15/$0.03/$0.50 per million uncached input/cached input/output tokens. Nonzero writes without a published rate stay unpriced. Other provider/model combinations, including older Fireworks models, OpenRouter, custom endpoints, and OpenCode Go (`opencode-go`), remain unpriced rather than borrowing a similarly named model's rate or trusting recorded cost. The diagnostic report includes the provider/model and explicit reasons. Current rates are applied to all displayed history; subscription charges, Priority/Fast mode and regional premiums, negotiated rates, payment fees, unrecorded title-generation calls, non-token tools, deleted data, pre-SQLite JSON storage, and future schema changes are outside coverage. Primary schema/accounting references: [token categories](https://github.com/anomalyco/opencode/blob/dev/packages/schema/src/token-usage.ts), [usage pricing](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/usage.ts), and [fork projection](https://github.com/anomalyco/opencode/blob/dev/packages/core/src/session/projector.ts), and [legacy fork copying](https://github.com/anomalyco/opencode/blob/v1.2.27/packages/opencode/src/session/index.ts).
-
-## Release maintenance
-
-The tag workflow in `.github/workflows/release.yml` calls the same test-and-package workflow used for PRs and `main`. It uses macOS 15, Xcode 16.4 and the standard Swift toolchain; there are no third-party Swift dependencies. Each architecture is built with an explicit macOS 13 deployment target and combined with `lipo`. This is a repeatable build recipe, not a claim of byte-for-byte identical ZIPs (build numbers, signatures and archive timestamps can differ).
-
-To validate a release locally without publishing:
+This prints JSON with the same accounting totals as the app without opening the UI. Add an ISO 8601 timestamp for a reproducible cutoff:
 
 ```sh
-# A standard Swift 6 toolchain; omit SWIFT_TOOL to use the local CLT workaround.
-SWIFT_TOOL=swift scripts/package-release.sh 1.2.3 1
+'build/Codex Cost.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
 ```
 
-This writes a universal ZIP, SHA-256 checksum and generated release notes into `build/release`. It validates both binary architectures, version/build metadata, macOS deployment targets, signature integrity, resource contents, the diagnostic report with `.build` hidden, and native GUI process startup after relocation and ZIP extraction. It stops only the temporary app process it starts. Runtime checks cover the runner's native architecture and OS; macOS 13 and the other architecture are validated in metadata, not tested on physical Macs.
+The report includes file/diagnostic counts, per-model totals, and reasons for unpriced usage. It reads only session metadata and usage.
 
-After merging and reviewing CI, a maintainer can create and push an annotated `v1.2.3` tag at the intended commit. Only numeric three-part stable versions are accepted. **Pushing a version tag authorizes publication**: after validation passes, the workflow creates the GitHub Release and attaches the ZIP and checksum. A failed test, packaging check or extraction check prevents the publish job. The tag sets `CFBundleShortVersionString`; the release workflow's run number sets `CFBundleVersion`. The public Release names the source commit and includes install/Gatekeeper instructions. A repeated run does not overwrite an existing Release; choose a new version for changed artifacts.
+## Development and tests
 
-### Signing and notarization
+With a standard Swift 6 installation:
 
-The current workflow needs only GitHub's temporary token to publish the validated artifacts. It does not request Apple credentials or claim notarization. To distribute with the normal Gatekeeper developer identity path, a future workflow needs an Apple Developer Program membership, a **Developer ID Application** certificate/private key, hardened runtime signing with a secure timestamp, submission to Apple's notary service, and a stapled accepted ticket before packaging. See [Apple's notarization requirements](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+```sh
+swift test --disable-xctest --enable-swift-testing
+swift build -c release
+```
 
-Keep any future certificate export, certificate password and notarization credentials in **GitHub Actions secrets**; never commit them or print them in logs. Import the certificate into a temporary runner keychain, sign the finished app, wait for notarization acceptance, staple and validate the ticket, re-run relocated package checks, and only then permit publication. Signing/notarization is not implemented by this release workflow; the ad-hoc download path above retains a first-launch Gatekeeper exception.
+For a Command Line Tools installation with inconsistent package interfaces, the repository includes a local workaround:
+
+```sh
+scripts/swift-tool.sh test --disable-sandbox --disable-xctest
+```
+
+[`swift-tool.sh`](scripts/swift-tool.sh) uses SwiftPM and local copies of public package interfaces; it leaves system files untouched. The bundle builder uses this wrapper too.
+
+GitHub Actions runs `CostCoreTests` and `AppTests` on pull requests and pushes to `main` with macOS 15 and Xcode 16.4's Swift 6 toolchain. Tests use synthetic fixtures and temporary directories, so they require no personal logs, API credentials, or account access. Compilation errors and test failures fail CI.
+
+After the tests pass, CI packages and validates a universal app ZIP, including metadata, resources, signature integrity, relocated reports, and startup after extraction. PR artifacts use version `0.0.0`; they are previews, not public releases. See [release maintenance](docs/releases.md) for local packaging, publication gates, and signing limits.
