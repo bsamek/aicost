@@ -1,6 +1,6 @@
 # Accounting and pricing coverage
 
-Codex Cost estimates API-equivalent token costs from local usage records, including locally recorded subscription usage. The app processes logs locally and read-only; it does not access credentials or send data over the network. See the [README](../README.md) for setup, log locations, and diagnostic reports.
+Harness estimates API-equivalent token costs from local usage records, including locally recorded subscription usage. The app processes logs locally and read-only; it does not access credentials or send data over the network. See the [README](../README.md) for setup, log locations, and diagnostic reports.
 
 ## What the estimate includes
 
