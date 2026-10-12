@@ -7,7 +7,9 @@ struct SummaryTests {
         let expected = [
             "claude-fable-5-1", "claude-fable-5", "anthropic/claude-haiku-5-5",
             "claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-sonnet-5-5",
-            "fireworks/accounts/fireworks/models/deepseek-v4p1-flash", "fireworks/glm-5p3-flash",
+            "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash",
+            "fireworks/accounts/fireworks/models/deepseek-v4p1-flash",
+            "fireworks-ai/accounts/fireworks/models/glm-5p3-flash", "fireworks/glm-5p3-flash",
             "gpt-6-astra", "gpt-5.5", "gpt-5.4-mini", "gpt-6-luna", "o4-mini", "o3",
             "gpt-6.10-sol", "gpt-6.9-sol", "openai-codex/gpt-6.1-sol", "openai/gpt-6-sol", "gpt-5.6-terra",
             "opencode/claude-opus-5", "opencode-go/gpt-6-sol", "openrouter/anthropic/claude-sonnet-5-5",
