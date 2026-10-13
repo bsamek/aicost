@@ -22,6 +22,7 @@ Open `Package.swift` in Xcode to navigate and debug the package, or use your edi
 | `scripts/format.sh` | Format the manifest, source, and tests in place |
 | `scripts/format.sh --check` | Check formatting without changing files |
 | `scripts/check.sh` | Check formatting, then run all Swift Testing tests |
+| `scripts/preview-ui.sh` | Capture the real native panel with synthetic data for agent visual review |
 | `bash scripts/build-app.sh` | Build and ad-hoc sign `build/Token Meter.app` |
 | `open 'build/Token Meter.app'` | Launch the local app |
 | `SWIFT_TOOL=swift scripts/package-release.sh 0.0.0 0` | Build and validate an arm64 preview ZIP without publishing |
@@ -41,6 +42,8 @@ SWIFT_TOOL=scripts/swift-tool.sh scripts/check.sh --disable-sandbox
 The wrapper copies public package interfaces into `.build` and supplies framework paths; it leaves system files untouched. `--disable-sandbox` is for environments that cannot run SwiftPM's build sandbox. CI uses standard Swift without the workaround. The app builder defaults to the wrapper; use `SWIFT_TOOL=swift bash scripts/build-app.sh` with a standard toolchain.
 
 ## Debug and validate changes
+
+For panel appearance changes, run `scripts/preview-ui.sh` (or `SWIFT_TOOL=scripts/swift-tool.sh scripts/preview-ui.sh`) and inspect the captured PNGs before claiming visual validation. This uses an incremental debug test build and briefly shows native preview windows; it does not install or replace the app. See [native UI validation](docs/ui-validation.md) for states, review criteria, and limitations.
 
 Use the matching provider tests in `Tests/CostCoreTests` for parsing, deduplication, pricing, and period boundaries. Refresh and lifecycle tests live in `Tests/AppTests`. For an accounting fix, add a synthetic regression fixture that fails before the fix and passes afterward. Never commit personal logs, database snapshots, credentials, or conversation text.
 
