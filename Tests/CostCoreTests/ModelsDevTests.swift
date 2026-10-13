@@ -1,11 +1,13 @@
 import Foundation
 import Testing
+
 @testable import CostCore
 
 struct ModelsDevTests {
     @Test func apiPricesOverrideBundledRatesAndRespectContextBoundaries() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
-        var event = testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 100_000, cached: 20_000, output: 1_000))
+        var event = testEvent(
+            model: "gpt-6.1-sol", usage: TokenUsage(input: 100_000, cached: 20_000, output: 1_000))
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.259"))
         event.requestInput = 100_001
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.518"))
@@ -19,7 +21,8 @@ struct ModelsDevTests {
     @Test func apiKeepsExactProvidersAndAddsModelsWithoutGuessing() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
         var event = testEvent(model: "new-model", usage: TokenUsage(input: 1_000))
-        event.openCodeUsage = OpenCodeTokenUsage(input: 1_000, cacheRead: 0, cacheWrite: 0, output: 0, reasoning: 0)
+        event.openCodeUsage = OpenCodeTokenUsage(
+            input: 1_000, cacheRead: 0, cacheWrite: 0, output: 0, reasoning: 0)
         event.openCodeProvider = "example"
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.007"))
         event.openCodeProvider = "custom"
@@ -27,7 +30,8 @@ struct ModelsDevTests {
         event.openCodeProvider = "example"
         event.model = "free-model"
         #expect(pricing.cost(for: event).usd == 0)
-        event.model = "gpt-6.1-sol"; event.openCodeProvider = "opencode"
+        event.model = "gpt-6.1-sol"
+        event.openCodeProvider = "opencode"
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.004"))
         // A missing API entry still uses an exact bundled rate.
         #expect(pricing.cost(for: testEvent(model: "gpt-4.1")).usd != nil)
@@ -36,10 +40,13 @@ struct ModelsDevTests {
     @Test func claudeRetainsDurationRatesAndRejectsUnknownHourRates() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
         var event = testEvent(model: "claude-sonnet-5-5")
-        event.claudeUsage = try JSONDecoder().decode(ClaudeTokenUsage.self, from: Data("""
-        {"input_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":100000,
-         "output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":100000}}
-        """.utf8))
+        event.claudeUsage = try JSONDecoder().decode(
+            ClaudeTokenUsage.self,
+            from: Data(
+                """
+                {"input_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":100000,
+                 "output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":100000}}
+                """.utf8))
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.4"))
         event.model = "claude-new"
         #expect(pricing.cost(for: event).usd == nil)
@@ -48,39 +55,51 @@ struct ModelsDevTests {
     @Test func bundledFallbackDoesNotBorrowAnotherProvidersModel() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
         var event = testEvent(model: "gpt-6.1-sol")
-        event.claudeUsage = try JSONDecoder().decode(ClaudeTokenUsage.self, from: Data("""
-        {"input_tokens":1000,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}
-        """.utf8))
+        event.claudeUsage = try JSONDecoder().decode(
+            ClaudeTokenUsage.self,
+            from: Data(
+                """
+                {"input_tokens":1000,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}
+                """.utf8))
         #expect(pricing.cost(for: event).usd == nil)
-        event.claudeUsage = nil; event.model = "claude-sonnet-5-5"
+        event.claudeUsage = nil
+        event.model = "claude-sonnet-5-5"
         #expect(pricing.cost(for: event).usd == nil)
     }
 
     @Test func rejectsMalformedPricesAndUnsupportedTiers() throws {
-        for bad in ["{}", "[]", "{\"x\":{\"models\":{\"a\":{\"cost\":{\"input\":-1,\"output\":2}}}}}",
-                    "{\"x\":{\"models\":{\"a\":{\"cost\":{\"input\":true,\"output\":2}}}}}"] {
+        for bad in [
+            "{}", "[]", "{\"x\":{\"models\":{\"a\":{\"cost\":{\"input\":-1,\"output\":2}}}}}",
+            "{\"x\":{\"models\":{\"a\":{\"cost\":{\"input\":true,\"output\":2}}}}}",
+        ] {
             #expect(throws: (any Error).self) {
                 try PricingCatalog.load(modelsDevData: Data(bad.utf8), fetchedAt: apiDate)
             }
         }
-        let data = Data("""
-        {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":1,"output":2,"tiers":[
-          {"tier":{"type":"context","size":100},"input":2,"output":4},
-          {"tier":{"type":"context","size":100},"input":3,"output":6}]}}}}}
-        """.utf8)
-        #expect(throws: (any Error).self) { try PricingCatalog.load(modelsDevData: data, fetchedAt: apiDate) }
+        let data = Data(
+            """
+            {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":1,"output":2,"tiers":[
+              {"tier":{"type":"context","size":100},"input":2,"output":4},
+              {"tier":{"type":"context","size":100},"input":3,"output":6}]}}}}}
+            """.utf8)
+        #expect(throws: (any Error).self) {
+            try PricingCatalog.load(modelsDevData: data, fetchedAt: apiDate)
+        }
     }
 
-    @Test func missingAPICacheRatesDoNotBorrowBundledRatesAndReasoningPremiumsStayUnpriced() throws {
-        let data = Data("""
-        {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":3,"output":15}}}},
-         "opencode":{"models":{"gpt-6.1-sol":{"cost":{"input":2,"output":10,"reasoning":20}}}},
-         "openrouter":{"models":{"gpt-6.1-sol":{"cost":{"input":2,"output":10}}}}}
-        """.utf8)
+    @Test func missingAPICacheRatesDoNotBorrowBundledRatesAndReasoningPremiumsStayUnpriced() throws
+    {
+        let data = Data(
+            """
+            {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":3,"output":15}}}},
+             "opencode":{"models":{"gpt-6.1-sol":{"cost":{"input":2,"output":10,"reasoning":20}}}},
+             "openrouter":{"models":{"gpt-6.1-sol":{"cost":{"input":2,"output":10}}}}}
+            """.utf8)
         let pricing = try PricingCatalog.load(modelsDevData: data, fetchedAt: apiDate)
         var event = testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000, cached: 500))
         #expect(pricing.cost(for: event).reason == "Cached-input rate unavailable")
-        event.openCodeUsage = OpenCodeTokenUsage(input: 1_000, cacheRead: 0, cacheWrite: 0, output: 20, reasoning: 10)
+        event.openCodeUsage = OpenCodeTokenUsage(
+            input: 1_000, cacheRead: 0, cacheWrite: 0, output: 20, reasoning: 10)
         event.openCodeProvider = "opencode"
         #expect(pricing.cost(for: event).reason == "Separate reasoning-token rate unsupported")
         event.openCodeProvider = "openrouter"
@@ -88,10 +107,11 @@ struct ModelsDevTests {
     }
 
     @Test func legacyContextTierUsesExplicit200kBoundary() throws {
-        let data = Data("""
-        {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":2,"output":10,
-          "context_over_200k":{"input":4,"output":15}}}}}}
-        """.utf8)
+        let data = Data(
+            """
+            {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":2,"output":10,
+              "context_over_200k":{"input":4,"output":15}}}}}}
+            """.utf8)
         let pricing = try PricingCatalog.load(modelsDevData: data, fetchedAt: apiDate)
         var event = testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1000))
         event.requestInput = 200_000
@@ -124,7 +144,10 @@ struct ModelsDevTests {
         let restored = PricingStore(cacheDirectory: root, fetch: { try await transport.fetch($0) })
         #expect(await restored.refreshIfNeeded(now: apiDate.addingTimeInterval(86_399)) == false)
         #expect(await transport.calls == 1)
-        #expect(try await restored.catalog().cost(for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))).usd == Decimal(string: "0.003"))
+        #expect(
+            try await restored.catalog().cost(
+                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+            ).usd == Decimal(string: "0.003"))
         #expect(await restored.refreshIfNeeded(now: apiDate.addingTimeInterval(86_400)))
         #expect(await transport.calls == 2)
     }
@@ -141,38 +164,54 @@ struct ModelsDevTests {
             #expect(await store.refreshIfNeeded(now: now) == false)
             #expect(await store.refreshIfNeeded(now: now.addingTimeInterval(30)) == false)
             #expect(await transport.calls == 1)
-            let restarted = PricingStore(cacheDirectory: root, fetch: { try await transport.fetch($0) })
+            let restarted = PricingStore(
+                cacheDirectory: root, fetch: { try await transport.fetch($0) })
             #expect(await restarted.refreshIfNeeded(now: now.addingTimeInterval(60)) == false)
             #expect(await transport.calls == 1)
-            #expect(try await store.catalog().cost(for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))).usd == Decimal(string: "0.003"))
+            #expect(
+                try await store.catalog().cost(
+                    for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+                ).usd == Decimal(string: "0.003"))
         }
-        let offline = PricingStore(cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
+        let offline = PricingStore(
+            cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
         #expect(await offline.refreshIfNeeded(now: apiDate.addingTimeInterval(4 * 86_400)) == false)
-        #expect(try await offline.catalog().cost(for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))).usd == Decimal(string: "0.003"))
+        #expect(
+            try await offline.catalog().cost(
+                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+            ).usd == Decimal(string: "0.003"))
     }
 
     @Test func emptyOrCorruptCacheUsesBundledPrices() async throws {
         let root = try apiTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = PricingStore(cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
-        #expect(try await store.catalog().cost(for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))).usd == Decimal(string: "0.002"))
+        let store = PricingStore(
+            cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
+        #expect(
+            try await store.catalog().cost(
+                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+            ).usd == Decimal(string: "0.002"))
         try Data("broken".utf8).write(to: root.appendingPathComponent("models-dev.json"))
-        #expect(try PricingStore.cachedCatalog(cacheDirectory: root).cost(for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))).usd == Decimal(string: "0.002"))
+        #expect(
+            try PricingStore.cachedCatalog(cacheDirectory: root).cost(
+                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+            ).usd == Decimal(string: "0.002"))
     }
 }
 
 private let apiDate = Date(timeIntervalSince1970: 1_791_800_000)
 private func apiFixture() -> Data {
-    Data("""
-    {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":3,"output":15,"cache_read":0.2,
-        "tiers":[{"tier":{"type":"context","size":100000},"input":6,"output":30,"cache_read":0.4},
-                 {"tier":{"type":"context","size":200000},"input":9,"output":45,"cache_read":0.6}]}}}},
-     "opencode":{"models":{"gpt-6.1-sol":{"cost":{"input":4,"output":20,"cache_read":0.3}}}},
-     "anthropic":{"models":{"claude-sonnet-5-5":{"cost":{"input":2,"output":10,"cache_write":2.5}},
-                               "claude-new":{"cost":{"input":2,"output":10,"cache_write":2.5}}}},
-     "example":{"models":{"new-model":{"cost":{"input":7,"output":21}},
-                            "free-model":{"cost":{"input":0,"output":0}}}}}
-    """.utf8)
+    Data(
+        """
+        {"openai":{"models":{"gpt-6.1-sol":{"cost":{"input":3,"output":15,"cache_read":0.2,
+            "tiers":[{"tier":{"type":"context","size":100000},"input":6,"output":30,"cache_read":0.4},
+                     {"tier":{"type":"context","size":200000},"input":9,"output":45,"cache_read":0.6}]}}}},
+         "opencode":{"models":{"gpt-6.1-sol":{"cost":{"input":4,"output":20,"cache_read":0.3}}}},
+         "anthropic":{"models":{"claude-sonnet-5-5":{"cost":{"input":2,"output":10,"cache_write":2.5}},
+                                   "claude-new":{"cost":{"input":2,"output":10,"cache_write":2.5}}}},
+         "example":{"models":{"new-model":{"cost":{"input":7,"output":21}},
+                                "free-model":{"cost":{"input":0,"output":0}}}}}
+        """.utf8)
 }
 private func apiTemporaryDirectory() throws -> URL {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -183,7 +222,10 @@ private actor CatalogTransport {
     var calls = 0
     let data: Data
     let status: Int
-    init(data: Data, status: Int = 200) { self.data = data; self.status = status }
+    init(data: Data, status: Int = 200) {
+        self.data = data
+        self.status = status
+    }
     func fetch(_ request: URLRequest) throws -> (Data, Int) {
         #expect(request.url?.absoluteString == "https://models.dev/api.json")
         #expect(request.httpMethod == nil || request.httpMethod == "GET")
@@ -199,12 +241,16 @@ private actor DeferredTransport {
     func fetch(_ request: URLRequest) async -> (Data, Int) {
         await withCheckedContinuation { continuation in
             reply = continuation
-            started?.resume(); started = nil
+            started?.resume()
+            started = nil
         }
     }
     func waitUntilStarted() async {
         if reply != nil { return }
         await withCheckedContinuation { started = $0 }
     }
-    func finish() { reply?.resume(returning: (apiFixture(), 200)); reply = nil }
+    func finish() {
+        reply?.resume(returning: (apiFixture(), 200))
+        reply = nil
+    }
 }

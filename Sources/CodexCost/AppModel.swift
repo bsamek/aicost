@@ -1,6 +1,6 @@
+import CostCore
 import Foundation
 import SwiftUI
-import CostCore
 
 struct LoadedUsage: Sendable {
     let summary: CostSummary
@@ -15,17 +15,27 @@ actor UsageLoader {
     private let claudeHome: URL?
     private let piHome: URL?
     private let openCodeHome: URL?
-    init(home: URL, claudeHome: URL?, piHome: URL? = nil, openCodeHome: URL? = nil, pricingStore: PricingStore) {
-        self.home = home; self.claudeHome = claudeHome; self.piHome = piHome; self.openCodeHome = openCodeHome
+    init(
+        home: URL, claudeHome: URL?, piHome: URL? = nil, openCodeHome: URL? = nil,
+        pricingStore: PricingStore
+    ) {
+        self.home = home
+        self.claudeHome = claudeHome
+        self.piHome = piHome
+        self.openCodeHome = openCodeHome
         self.pricingStore = pricingStore
     }
     func load(now: Date, calendar: Calendar) async throws -> LoadedUsage {
         let pricing = try await pricingStore.catalog()
         // First show cached/bundled totals. The regular usage refresh picks up new rates.
         Task { await pricingStore.refreshIfNeeded(now: now) }
-        let scan = try scanner.scan(codexHome: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome)
-        return LoadedUsage(summary: SummaryBuilder.build(events: scan.events, now: now, calendar: calendar, pricing: pricing),
-                           diagnostics: scan.diagnostics, fileCount: scan.fileCount, verifiedAt: pricing.verifiedAt)
+        let scan = try scanner.scan(
+            codexHome: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome)
+        return LoadedUsage(
+            summary: SummaryBuilder.build(
+                events: scan.events, now: now, calendar: calendar, pricing: pricing),
+            diagnostics: scan.diagnostics, fileCount: scan.fileCount, verifiedAt: pricing.verifiedAt
+        )
     }
 }
 
@@ -39,41 +49,74 @@ actor UsageLoader {
     @Published private(set) var pricingDate: String?
     private let loader: UsageLoader
 
-    init(home: URL, claudeHome: URL? = nil, piHome: URL? = nil, openCodeHome: URL? = nil, pricingStore: PricingStore = PricingStore()) {
-        loader = UsageLoader(home: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome, pricingStore: pricingStore)
+    init(
+        home: URL, claudeHome: URL? = nil, piHome: URL? = nil, openCodeHome: URL? = nil,
+        pricingStore: PricingStore = PricingStore()
+    ) {
+        loader = UsageLoader(
+            home: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome,
+            pricingStore: pricingStore)
     }
-    convenience init() { self.init(home: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome()) }
+    convenience init() {
+        self.init(
+            home: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(),
+            piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome())
+    }
 
-    nonisolated static func resolveHome(environment: [String: String] = ProcessInfo.processInfo.environment,
-                                        userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        guard let override = environment["CODEX_HOME"], !override.isEmpty else { return userHome.appendingPathComponent(".codex") }
+    nonisolated static func resolveHome(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        guard let override = environment["CODEX_HOME"], !override.isEmpty else {
+            return userHome.appendingPathComponent(".codex")
+        }
         if override == "~" { return userHome }
-        if override.hasPrefix("~/") { return userHome.appendingPathComponent(String(override.dropFirst(2))) }
+        if override.hasPrefix("~/") {
+            return userHome.appendingPathComponent(String(override.dropFirst(2)))
+        }
         return URL(fileURLWithPath: override, isDirectory: true)
     }
-    nonisolated static func resolveClaudeHome(environment: [String: String] = ProcessInfo.processInfo.environment,
-                                              userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        guard let override = environment["CLAUDE_CONFIG_DIR"], !override.isEmpty else { return userHome.appendingPathComponent(".claude") }
+    nonisolated static func resolveClaudeHome(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        guard let override = environment["CLAUDE_CONFIG_DIR"], !override.isEmpty else {
+            return userHome.appendingPathComponent(".claude")
+        }
         if override == "~" { return userHome }
-        if override.hasPrefix("~/") { return userHome.appendingPathComponent(String(override.dropFirst(2))) }
+        if override.hasPrefix("~/") {
+            return userHome.appendingPathComponent(String(override.dropFirst(2)))
+        }
         return URL(fileURLWithPath: override, isDirectory: true)
     }
-    nonisolated static func resolvePiHome(environment: [String: String] = ProcessInfo.processInfo.environment,
-                                          userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        guard let override = environment["PI_CODING_AGENT_DIR"], !override.isEmpty else { return userHome.appendingPathComponent(".pi/agent") }
+    nonisolated static func resolvePiHome(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        guard let override = environment["PI_CODING_AGENT_DIR"], !override.isEmpty else {
+            return userHome.appendingPathComponent(".pi/agent")
+        }
         if override == "~" { return userHome }
-        if override.hasPrefix("~/") { return userHome.appendingPathComponent(String(override.dropFirst(2))) }
+        if override.hasPrefix("~/") {
+            return userHome.appendingPathComponent(String(override.dropFirst(2)))
+        }
         return URL(fileURLWithPath: override, isDirectory: true)
     }
-    nonisolated static func resolveOpenCodeHome(environment: [String: String] = ProcessInfo.processInfo.environment,
-                                                userHome: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+    nonisolated static func resolveOpenCodeHome(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        userHome: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
         guard let dataHome = environment["XDG_DATA_HOME"], !dataHome.isEmpty else {
             return userHome.appendingPathComponent(".local/share/opencode")
         }
         let root: URL
-        if dataHome == "~" { root = userHome }
-        else if dataHome.hasPrefix("~/") { root = userHome.appendingPathComponent(String(dataHome.dropFirst(2))) }
-        else { root = URL(fileURLWithPath: dataHome, isDirectory: true) }
+        if dataHome == "~" {
+            root = userHome
+        } else if dataHome.hasPrefix("~/") {
+            root = userHome.appendingPathComponent(String(dataHome.dropFirst(2)))
+        } else {
+            root = URL(fileURLWithPath: dataHome, isDirectory: true)
+        }
         return root.appendingPathComponent("opencode")
     }
     func refresh() async {
@@ -83,8 +126,12 @@ actor UsageLoader {
         let now = Date()
         do {
             let loaded = try await loader.load(now: now, calendar: .current)
-            summary = loaded.summary; diagnostics = loaded.diagnostics; fileCount = loaded.fileCount
-            pricingDate = loaded.verifiedAt; lastRefreshed = now; error = nil
+            summary = loaded.summary
+            diagnostics = loaded.diagnostics
+            fileCount = loaded.fileCount
+            pricingDate = loaded.verifiedAt
+            lastRefreshed = now
+            error = nil
         } catch {
             self.error = error.localizedDescription
         }

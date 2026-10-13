@@ -1,5 +1,7 @@
 # Codex Cost
 
+> **Historical design, October 10, 2026.** Preserved as a record of the initial Codex-only app. Some naming, coverage, and UI requirements have since changed. Use the current [architecture](../../architecture.md), [accounting](../../accounting.md), and [contributor guide](../../../CONTRIBUTING.md) for maintenance.
+
 A small native macOS menu bar app that estimates what Brian's locally recorded Codex token usage would cost at published OpenAI API prices while he uses a subscription.
 
 ## Interface

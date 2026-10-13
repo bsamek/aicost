@@ -86,21 +86,22 @@ The report includes file/diagnostic counts, per-model totals, and reasons for un
 
 ## Development and tests
 
-With a standard Swift 6 installation:
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup, debugging, and PR guidance, and the [architecture guide](docs/architecture.md) for a map of the code. Coding agents should also read [AGENTS.md](AGENTS.md).
+
+With a standard Swift 6 installation, check formatting and run all tests:
 
 ```sh
-swift test --disable-xctest --enable-swift-testing
-swift build -c release
+scripts/check.sh
 ```
 
 For a Command Line Tools installation with inconsistent package interfaces, the repository includes a local workaround:
 
 ```sh
-scripts/swift-tool.sh test --disable-sandbox --disable-xctest
+SWIFT_TOOL=scripts/swift-tool.sh scripts/check.sh --disable-sandbox
 ```
 
 [`swift-tool.sh`](scripts/swift-tool.sh) uses SwiftPM and local copies of public package interfaces; it leaves system files untouched. The bundle builder uses this wrapper too.
 
-GitHub Actions runs `CostCoreTests` and `AppTests` on pull requests and pushes to `main` with macOS 15 and Xcode 16.4's Swift 6 toolchain. Tests use synthetic fixtures and temporary directories, so they require no personal logs, API credentials, or account access. Compilation errors and test failures fail CI.
+Run `scripts/format.sh` to apply the checked-in Swift formatting style. GitHub Actions uses the same `scripts/check.sh` command on pull requests and pushes to `main` with macOS 15 and Xcode 16.4's Swift 6 toolchain. Tests use synthetic fixtures and temporary directories, so they require no personal logs, API credentials, or account access. Formatting violations, compilation errors, and test failures fail CI.
 
 After the tests pass, CI packages and validates a universal app ZIP, including metadata, resources, signature integrity, relocated reports, and startup after extraction. PR artifacts use version `0.0.0`; they are previews, not public releases. See [release maintenance](docs/releases.md) for local packaging, publication gates, and signing limits.
