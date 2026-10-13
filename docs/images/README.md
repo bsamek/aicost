@@ -1,12 +1,13 @@
 # App images
 
-These images capture the app's native views with synthetic usage data, at 2× scale:
+`usage-panel.png` captures the current shared `CostPanelContent` in a native AppKit window at the production 280-point width and 2× scale, in light appearance with automatic update checks enabled. It shows Today and This Month totals, model costs, the subtle update controls, and Restart and Quit actions.
 
-- `menu-bar.png`: the actual `NSStatusBarButton`, isolated on a neutral dark backing.
-- `usage-panel.png`: the stock `CostPanel`, rendered by SwiftUI `ImageRenderer` with its normal light appearance on a neutral backing. It shows four models today and five this month, including the native Restart and Quit controls.
+Captured October 13, 2026 from commit `a90b092` using:
 
-Captured October 12, 2026 from the integrated UI at `49c03aba21148c63ee6c10b361c7d839ef1a87e0`. The panel used native view rendering because desktop screen capture was unavailable. No mockup, overlaid text, personal usage logs, or unrelated menu items are included.
+```sh
+SWIFT_TOOL=scripts/swift-tool.sh scripts/preview-ui.sh
+```
 
-Verified against v0.1.0: the panel already reflects alphabetical provider and family ordering. Anthropic's Claude families appear as Haiku, Opus, Sonnet; OpenAI's GPT families appear as Astra, Sol. Haiku has no priced usage today in the sample, so it appears only in This Month. The image remains representative of the released UI.
+The README image is the harness output `light-auto-on.png`. Totals are synthetic ($2.46 today and $56.24 this month), and version `0.0.0` identifies the preview. The harness renders the same native content as the live panel without reading personal logs or preferences, starting Sparkle, or replacing the installed app. It captures panel content, not the menu-bar anchor or popover material. See [native UI validation](../ui-validation.md) for the workflow and limits.
 
-The sample logs contain only made-up session/message identifiers and token counts. All four log roots were explicitly set to isolated temporary directories. The diagnostic report contained 17 sample files, zero diagnostics, and zero unpriced records; Today totaled $11.39 and This Month totaled $45.6152 (displayed as $45.62). Capture-only instrumentation stayed outside the repository; the app source was not changed for these images.
+`menu-bar.png` is an older capture of the actual `NSStatusBarButton`, isolated on a neutral dark backing. It was captured October 12, 2026 with synthetic usage data and is not displayed in the README.
