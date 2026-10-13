@@ -60,7 +60,7 @@ import SwiftUI
             || (model.summary?.today.unpricedCount ?? 0) > 0
         item.button?.title = total
         item.button?.toolTip =
-            "Harness — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
+            "Token Meter — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
     }
     @objc private func togglePanel() {
         if popover.isShown {
@@ -93,7 +93,7 @@ import SwiftUI
             return true
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Couldn’t restart Harness"
+            alert.messageText = "Couldn’t restart Token Meter"
             alert.informativeText = error.localizedDescription
             alert.alertStyle = .warning
             alert.runModal()

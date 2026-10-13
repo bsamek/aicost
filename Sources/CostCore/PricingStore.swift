@@ -4,6 +4,7 @@ import Foundation
 public actor PricingStore {
     public typealias Fetch = @Sendable (URLRequest) async throws -> (Data, Int)
     public static let refreshInterval: TimeInterval = 24 * 60 * 60
+    // Retain the legacy directory so app renames preserve cached prices and refresh throttling.
     public static var defaultCacheDirectory: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Harness", isDirectory: true)
