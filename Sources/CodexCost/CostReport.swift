@@ -14,7 +14,7 @@ enum CostReport {
         } else {
             now = Date()
         }
-        let pricing = try PricingCatalog.load()
+        let pricing = try PricingStore.cachedCatalog()
         let scan = try UsageScanner().scan(
             codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(),
             piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome())
@@ -32,8 +32,14 @@ enum CostReport {
                 },
             ]
         }
+        var pricingInfo: [String: Any] = [
+            "source": pricing.source, "bundledVerifiedAt": pricing.verifiedAt,
+        ]
+        if let date = pricing.fetchedAt {
+            pricingInfo["fetchedAt"] = ISO8601DateFormatter().string(from: date)
+        }
         let report: [String: Any] = [
-            "today": period(summary.today), "month": period(summary.month),
+            "today": period(summary.today), "month": period(summary.month), "pricing": pricingInfo,
             "diagnostics": scan.diagnostics, "files": scan.fileCount,
             "asOf": ISO8601DateFormatter().string(from: now),
         ]

@@ -22,7 +22,7 @@ Local logs / OpenCode database snapshot
 | Claude, Pi, or OpenCode formats and identities | Corresponding `*SessionParser.swift` and `*SessionScanner.swift` files |
 | Combined scanning and diagnostics | `Sources/CostCore/UsageScanner.swift` |
 | Shared usage types | `Sources/CostCore/Usage.swift` |
-| Rates and provider-specific pricing | `Sources/CostCore/Pricing.swift`, `OpenCodePricing.swift`, `Resources/*.json` |
+| Rates and provider-specific pricing | `Sources/CostCore/Pricing.swift`, `OpenCodePricing.swift`, `ModelsDevCatalog.swift`, `PricingStore.swift`, `Resources/*.json` |
 | Day/month totals and ordering | `Sources/CostCore/Summary.swift`, `ModelOrder.swift` |
 | Source overrides, background loading, refresh state | `Sources/CodexCost/AppModel.swift` |
 | Menu bar lifecycle and automatic refresh | `Sources/CodexCost/App.swift` |
@@ -38,7 +38,7 @@ Each provider retains its own token semantics and deduplication rules. `UsageSca
 
 ## Resources, tests, and distribution
 
-Three pricing JSON catalogs live in `Sources/CostCore/Resources` and are packaged into the CostCore resource bundle. Command-line builds use SwiftPM resource lookup; `.app` builds load the copied bundle from app resources. Harness is the display name; the executable, Swift targets, and resource bundle retain CodexCost identifiers.
+The models.dev API supplies provider/model rates through `ModelsDevCatalog`; `PricingStore` validates responses, persists a last-good cache, and throttles background fetches to once every 24 hours. Startup reads cached prices or bundled fallback immediately; the report reads the same disk cache without fetching. Three fallback pricing JSON catalogs live in `Sources/CostCore/Resources` and are packaged into the CostCore resource bundle. Command-line builds use SwiftPM resource lookup; `.app` builds load the copied bundle from app resources. Harness is the display name; the executable, Swift targets, and resource bundle retain CodexCost identifiers.
 
 `Tests/CostCoreTests` covers accounting with synthetic logs and temporary databases. `Tests/AppTests` covers refresh state, source resolution, and relaunch behavior. Both use Swift Testing. Follow [CONTRIBUTING](../CONTRIBUTING.md) for local commands.
 

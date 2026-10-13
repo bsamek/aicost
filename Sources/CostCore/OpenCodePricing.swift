@@ -19,6 +19,12 @@ struct OpenCodePricingCatalog: Sendable {
         let short: Rates
         let long: Rates?
         let longContextThreshold: Int64?
+        let tiers: [Tier]?
+        let issue: String?
+        struct Tier: Decodable, Sendable {
+            let threshold: Int64
+            let rates: Rates
+        }
     }
     private struct Catalog: Decodable {
         let source: String
@@ -26,7 +32,7 @@ struct OpenCodePricingCatalog: Sendable {
         let models: [String: ModelRates]
     }
     private let models: [String: ModelRates]
-    init(data: Data) throws {
+    init(data: Data, apiModelsData: Data? = nil) throws {
         let catalog = try JSONDecoder().decode(Catalog.self, from: data)
         guard !catalog.models.isEmpty,
             catalog.models.values.allSatisfy({
@@ -35,7 +41,13 @@ struct OpenCodePricingCatalog: Sendable {
                         || ($0.long!.values != nil && ($0.longContextThreshold ?? 0) > 0))
             })
         else { throw PricingError.invalidCatalog }
-        models = catalog.models
+        let remote =
+            try apiModelsData.map { try JSONDecoder().decode([String: ModelRates].self, from: $0) }
+            ?? [:]
+        // Aggregator routes cannot be inferred from their model's canonical identity.
+        models = catalog.models.merging(remote.filter { !$0.key.hasPrefix("openrouter/") }) {
+            _, api in api
+        }
     }
     static func bundledData() throws -> Data {
         let url: URL?
@@ -56,9 +68,14 @@ struct OpenCodePricingCatalog: Sendable {
         guard let modelRates = models[provider + "/" + model] else {
             return unpriced("OpenCode rate unavailable for \(provider)/\(model)")
         }
+        if let issue = modelRates.issue { return unpriced(issue) }
+        let tier = modelRates.tiers?.filter { usage.requestInput > $0.threshold }.max {
+            $0.threshold < $1.threshold
+        }
         let rates =
-            usage.requestInput > (modelRates.longContextThreshold ?? Int64.max)
-            ? (modelRates.long ?? modelRates.short) : modelRates.short
+            tier?.rates
+            ?? (usage.requestInput > (modelRates.longContextThreshold ?? Int64.max)
+                ? (modelRates.long ?? modelRates.short) : modelRates.short)
         guard usage.cacheRead == 0 || rates.cached != nil else {
             return unpriced("OpenCode cache-read rate unavailable")
         }

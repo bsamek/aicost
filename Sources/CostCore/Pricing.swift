@@ -48,6 +48,26 @@ public struct PricingCatalog: Sendable {
         let short: Rates
         let long: Rates?
         let longContextThreshold: Int64?
+        let tiers: [Tier]?
+        let issue: String?
+        struct Tier: Decodable, Sendable {
+            let threshold: Int64
+            let rates: Rates
+        }
+        func selected(_ input: Int64?, threshold: Int64) -> Rates {
+            guard let input else { return short }
+            if let tier = tiers?.filter({ input > $0.threshold }).max(by: {
+                $0.threshold < $1.threshold
+            }) {
+                return tier.rates
+            }
+            if let long, input > (longContextThreshold ?? threshold) { return long }
+            return short
+        }
+        var isTiered: Bool { long != nil || !(tiers?.isEmpty ?? true) }
+        func firstThreshold(_ fallback: Int64) -> Int64 {
+            tiers?.map(\.threshold).min() ?? longContextThreshold ?? fallback
+        }
     }
     private struct Catalog: Decodable {
         let source: String
@@ -57,26 +77,44 @@ public struct PricingCatalog: Sendable {
     }
     public let source: String
     public let verifiedAt: String
+    public let fetchedAt: Date?
     private let threshold: Int64
     private let models: [String: ModelRates]
     private let openCodePricing: OpenCodePricingCatalog?
 
     private let piModels: [String: ModelRates]
+    private let apiModels: [String: ModelRates]
 
-    public init(data: Data, piData: Data? = nil, openCodeData: Data? = nil) throws {
+    public init(
+        data: Data, piData: Data? = nil, openCodeData: Data? = nil, modelsDevData: Data? = nil,
+        fetchedAt: Date? = nil
+    ) throws {
         let catalog = try JSONDecoder().decode(Catalog.self, from: data)
         guard catalog.longContextThreshold > 0, !catalog.models.isEmpty else {
             throw PricingError.invalidCatalog
         }
         let piCatalog = try piData.map { try JSONDecoder().decode(Catalog.self, from: $0) }
         piModels = piCatalog?.models ?? [:]
-        openCodePricing = try openCodeData.map { try OpenCodePricingCatalog(data: $0) }
-        source = catalog.source + (piCatalog.map { " ; " + $0.source } ?? "")
+        let converted = try modelsDevData.map {
+            try ModelsDevCatalog.convert($0, bundledData: data)
+        }
+        apiModels =
+            try converted.map { try JSONDecoder().decode([String: ModelRates].self, from: $0) }
+            ?? [:]
+        openCodePricing = try openCodeData.map {
+            try OpenCodePricingCatalog(data: $0, apiModelsData: converted)
+        }
+        source =
+            (modelsDevData == nil ? "" : "https://models.dev/api.json ; bundled fallback: ")
+            + catalog.source + (piCatalog.map { " ; " + $0.source } ?? "")
         verifiedAt = min(catalog.verifiedAt, piCatalog?.verifiedAt ?? catalog.verifiedAt)
+        self.fetchedAt = modelsDevData == nil ? nil : fetchedAt
         threshold = catalog.longContextThreshold
         models = catalog.models
     }
-    public static func load() throws -> PricingCatalog {
+    public static func load(modelsDevData: Data? = nil, fetchedAt: Date? = nil) throws
+        -> PricingCatalog
+    {
         func resource(_ name: String) throws -> Data {
             let url: URL?
             if Bundle.main.bundleURL.pathExtension == "app" {
@@ -92,7 +130,8 @@ public struct PricingCatalog: Sendable {
         }
         return try PricingCatalog(
             data: resource("pricing"), piData: resource("pi-pricing"),
-            openCodeData: OpenCodePricingCatalog.bundledData())
+            openCodeData: OpenCodePricingCatalog.bundledData(), modelsDevData: modelsDevData,
+            fetchedAt: fetchedAt)
     }
     public func cost(for event: UsageEvent) -> CostResult {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
@@ -106,22 +145,23 @@ public struct PricingCatalog: Sendable {
             return openCodePricing.cost(for: event, usage: usage)
         }
         guard event.usage.isValid else { return unpriced("Invalid token counts") }
-        guard let model = event.model, let modelRates = models[model] else {
-            return unpriced("Model rate unavailable")
-        }
+        guard let model = event.model,
+            let modelRates = apiModels["openai/" + model]
+                ?? (model.hasPrefix("claude-") ? nil : models[model])
+        else { return unpriced("Model rate unavailable") }
+        if let issue = modelRates.issue { return unpriced(issue) }
         let usage = event.usage
         // Available local samples have zero writes. Do not assume whether a future
         // nonzero write count is included in input until that schema is verified.
         guard usage.writes == 0 else { return unpriced("Cache-write accounting unavailable") }
-        var rates = modelRates.short
-        if let long = modelRates.long {
+        if modelRates.isTiered {
             if let requestInput = event.requestInput {
                 guard requestInput >= 0 else { return unpriced("Invalid request token count") }
-                if requestInput > (modelRates.longContextThreshold ?? threshold) { rates = long }
-            } else if usage.input > (modelRates.longContextThreshold ?? threshold) {
+            } else if usage.input > modelRates.firstThreshold(threshold) {
                 return unpriced("Request context unavailable")
             }
         }
+        let rates = modelRates.selected(event.requestInput, threshold: threshold)
         guard usage.cached == 0 || rates.cached != nil else {
             return unpriced("Cached-input rate unavailable")
         }
@@ -138,21 +178,26 @@ public struct PricingCatalog: Sendable {
             return unpriced("Pi provider/model unavailable")
         }
         let modelRates: ModelRates?
-        switch provider {
-        case "anthropic": modelRates = model.hasPrefix("claude-") ? models[model] : nil
-        case "openai", "openai-codex":
-            modelRates = !model.hasPrefix("claude-") ? models[model] : nil
-        case "fireworks": modelRates = piModels[provider + "/" + model]
-        case "openrouter": return unpriced("Pi OpenRouter serving-route rate unavailable")
-        default: return unpriced("Pi provider rate unavailable: " + provider)
+        let apiProvider =
+            provider == "openai-codex"
+            ? "openai" : provider == "fireworks" ? "fireworks-ai" : provider
+        if provider == "openrouter" {
+            return unpriced("Pi OpenRouter serving-route rate unavailable")
+        }
+        if let remote = apiModels[apiProvider + "/" + model] {
+            modelRates = remote
+        } else {
+            switch provider {
+            case "anthropic": modelRates = model.hasPrefix("claude-") ? models[model] : nil
+            case "openai", "openai-codex":
+                modelRates = !model.hasPrefix("claude-") ? models[model] : nil
+            case "fireworks": modelRates = piModels[provider + "/" + model]
+            default: return unpriced("Pi provider rate unavailable: " + provider)
+            }
         }
         guard let modelRates else { return unpriced("Pi model rate unavailable for " + provider) }
-        var rates = modelRates.short
-        if let long = modelRates.long, let input = usage.requestInput,
-            input > (modelRates.longContextThreshold ?? threshold)
-        {
-            rates = long
-        }
+        if let issue = modelRates.issue { return unpriced(issue) }
+        let rates = modelRates.selected(usage.requestInput, threshold: threshold)
         guard usage.cacheRead == 0 || rates.cached != nil else {
             return unpriced("Pi cache-read rate unavailable")
         }
@@ -170,6 +215,9 @@ public struct PricingCatalog: Sendable {
                     Decimal(five) * (rates.writes5m ?? 0) + Decimal(hour) * (rates.writes1h ?? 0)
             }
         } else {
+            guard (usage.cacheWrite1h ?? 0) == 0 else {
+                return unpriced("Pi provider cache-write duration rate unavailable")
+            }
             guard usage.cacheWrite == 0 || rates.writes != nil else {
                 return unpriced("Pi cache-write rate unavailable")
             }
@@ -184,15 +232,12 @@ public struct PricingCatalog: Sendable {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
         guard usage.isValid else { return unpriced("Invalid Claude token counts") }
         if let issue = usage.cacheIssue { return unpriced(issue) }
-        guard let model = event.model, let modelRates = models[model] else {
-            return unpriced("Model rate unavailable")
-        }
-        var rates = modelRates.short
-        if let long = modelRates.long, let context = usage.requestInput,
-            context > (modelRates.longContextThreshold ?? threshold)
-        {
-            rates = long
-        }
+        guard let model = event.model,
+            let modelRates = apiModels["anthropic/" + model]
+                ?? (model.hasPrefix("claude-") ? models[model] : nil)
+        else { return unpriced("Model rate unavailable") }
+        if let issue = modelRates.issue { return unpriced(issue) }
+        let rates = modelRates.selected(usage.requestInput, threshold: threshold)
         guard usage.cacheRead == 0 || rates.cached != nil else {
             return unpriced("Cached-input rate unavailable")
         }

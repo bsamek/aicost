@@ -1,3 +1,4 @@
+import CostCore
 import Foundation
 import Testing
 
@@ -21,7 +22,8 @@ import Testing
         try process.run()
         process.waitUntilExit()
         #expect(process.terminationStatus == 0)
-        let model = AppModel(home: root, openCodeHome: root)
+        let model = AppModel(
+            home: root, openCodeHome: root, pricingStore: try isolatedPricingStore(root))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.003"))
         #expect(model.summary?.month.total == Decimal(string: "0.003"))
@@ -58,7 +60,8 @@ import Testing
             """
         try Data(codexRecords.utf8).write(to: codex.appendingPathComponent("sessions/a.jsonl"))
         try Data(claudeRecord.utf8).write(to: claude.appendingPathComponent("projects/a.jsonl"))
-        let model = AppModel(home: codex, claudeHome: claude)
+        let model = AppModel(
+            home: codex, claudeHome: claude, pricingStore: try isolatedPricingStore(root))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.007"))
         #expect(model.summary?.month.total == Decimal(string: "0.007"))
@@ -81,7 +84,7 @@ import Testing
             {"type":"message","id":"entry","message":{"role":"assistant","provider":"openai-codex","model":"gpt-6.1-sol","timestamp":\(milliseconds),"usage":{"input":1000,"cacheRead":0,"cacheWrite":0,"output":0}}}
             """
         try Data(records.utf8).write(to: pi.appendingPathComponent("sessions/a.jsonl"))
-        let model = AppModel(home: codex, piHome: pi)
+        let model = AppModel(home: codex, piHome: pi, pricingStore: try isolatedPricingStore(root))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.002"))
         #expect(model.summary?.month.total == Decimal(string: "0.002"))
@@ -125,7 +128,7 @@ import Testing
 
             """
         try Data(data.utf8).write(to: home.appendingPathComponent("sessions/a.jsonl"))
-        let model = AppModel(home: home)
+        let model = AppModel(home: home, pricingStore: try isolatedPricingStore(home))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.002"))
         let previous = model.lastRefreshed
@@ -153,7 +156,7 @@ import Testing
 
             """
         try Data(records.utf8).write(to: file)
-        let model = AppModel(home: home)
+        let model = AppModel(home: home, pricingStore: try isolatedPricingStore(home))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.002"))
         let successfulRefresh = try #require(model.lastRefreshed)
@@ -173,7 +176,7 @@ import Testing
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try Data("not a directory".utf8).write(to: home.appendingPathComponent("sessions"))
-        let model = AppModel(home: home)
+        let model = AppModel(home: home, pricingStore: try isolatedPricingStore(home))
         await model.refresh()
         #expect(model.summary == nil)
         #expect(model.lastRefreshed == nil)
@@ -187,4 +190,44 @@ import Testing
             AppModel.resolveHome(environment: ["CODEX_HOME": "~/custom"], userHome: home).path
                 == "/Users/example/custom")
     }
+
+    @Test func appAndReportCatalogUseTheSamePersistedAPIPrices() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("sessions"), withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cache = root.appendingPathComponent("cache")
+        let store = PricingStore(
+            cacheDirectory: cache,
+            fetch: { _ in
+                (
+                    Data(
+                        "{\"openai\":{\"models\":{\"gpt-6.1-sol\":{\"cost\":{\"input\":3,\"output\":15}}}}}"
+                            .utf8), 200
+                )
+            })
+        #expect(await store.refreshIfNeeded())
+        let stamp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-10))
+        let records = """
+            {"type":"session_meta","payload":{"id":"s"}}
+            {"type":"turn_context","payload":{"model":"gpt-6.1-sol"}}
+            {"type":"event_msg","timestamp":"\(stamp)","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"output_tokens":0},"last_token_usage":{"input_tokens":1000,"output_tokens":0}}}}
+            """
+        try Data(records.utf8).write(to: root.appendingPathComponent("sessions/a.jsonl"))
+        let model = AppModel(home: root, pricingStore: store)
+        await model.refresh()
+        #expect(model.summary?.today.total == Decimal(string: "0.003"))
+        let pricing = try PricingStore.cachedCatalog(cacheDirectory: cache)
+        let scan = try UsageScanner().scan(codexHome: root, claudeHome: nil)
+        #expect(pricing.cost(for: scan.events[0]).usd == model.summary?.today.total)
+        #expect(pricing.fetchedAt != nil)
+    }
+}
+
+private func isolatedPricingStore(_ root: URL) throws -> PricingStore {
+    let cache = root.appendingPathComponent("pricing-cache")
+    try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+    try JSONEncoder().encode(Date()).write(to: cache.appendingPathComponent("last-attempt.json"))
+    return PricingStore(
+        cacheDirectory: cache, fetch: { _ in throw URLError(.notConnectedToInternet) })
 }
