@@ -12,7 +12,7 @@ Local logs / OpenCode database snapshot
     → CostSummary → AppModel / CostPanel or CostReport JSON
 ```
 
-`CostCore` owns parsing, scanning, pricing, aggregation, and ordering. It uses Foundation and platform APIs, with no UI code or third-party libraries. `CodexCost` owns the AppKit/SwiftUI menu bar app and report. The package uses Swift 6 language mode and targets macOS 13 or later.
+`CostCore` owns parsing, scanning, pricing, aggregation, and ordering. It uses Foundation and platform APIs, with no UI code or third-party libraries. `CodexCost` owns the AppKit/SwiftUI menu bar app and report. The package uses Swift 6 language mode and targets Apple Silicon Macs running macOS 13 or later.
 
 ## Where to make a change
 
@@ -42,4 +42,4 @@ The models.dev API supplies provider/model rates through `ModelsDevCatalog`; `Pr
 
 `Tests/CostCoreTests` covers accounting with synthetic logs and temporary databases. `Tests/AppTests` covers refresh state, source resolution, and relaunch behavior. Both use Swift Testing. Follow [CONTRIBUTING](../CONTRIBUTING.md) for local commands.
 
-CI runs formatting and tests before universal packaging. Packaging validates metadata, architectures, signatures, resources, and execution after relocation/extraction. Version-tag releases reuse the validation workflow before publication. See [release maintenance](releases.md) for signing limits and validation details.
+CI runs formatting and tests before arm64 packaging. Packaging validates metadata, the arm64 architecture, signatures, resources, and execution after relocation/extraction. Version-tag releases reuse the validation workflow before publication. See [release maintenance](releases.md) for signing limits and validation details.

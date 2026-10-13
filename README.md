@@ -18,15 +18,15 @@ These are **token-cost estimates**, not your subscription bill or an exact histo
 
 ## Requirements
 
-- macOS 13 or later.
+- Apple Silicon Mac with macOS 13 or later.
 - Locally recorded usage from at least one supported agent.
 - To build from source: Swift 6 and Apple's Command Line Tools or Xcode.
 
 ## Install and run
 
-Download the universal Apple Silicon + Intel ZIP from [the latest release](https://github.com/bsamek/aicost/releases/latest), or build from source using the steps below. The existing v0.1.0 release is named **Codex Cost** (`Codex-Cost-0.1.0-universal.zip`, containing `Codex Cost.app`); subsequent releases and source builds use **Harness**.
+Download the Apple Silicon (arm64) ZIP from [the latest release](https://github.com/bsamek/aicost/releases/latest), or build from source using the steps below. Intel Macs are no longer supported.
 
-Download `Harness-VERSION-universal.zip`, unzip it, and drag `Harness.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Harness-VERSION-universal.zip.sha256`; it does not establish publisher identity.
+Download `Harness-VERSION-arm64.zip`, unzip it, and drag `Harness.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Harness-VERSION-arm64.zip.sha256`; it does not establish publisher identity.
 
 Build from a checkout:
 
@@ -37,7 +37,7 @@ bash scripts/build-app.sh
 open 'build/Harness.app'
 ```
 
-The build uses your Mac's architecture and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. To update, use **Quit** in the panel, replace the app, and open the new copy; local usage logs live outside the app.
+The build targets Apple Silicon (arm64) and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. To update, use **Quit** in the panel, replace the app, and open the new copy; local usage logs live outside the app.
 
 ## Usage and log locations
 
@@ -104,4 +104,4 @@ SWIFT_TOOL=scripts/swift-tool.sh scripts/check.sh --disable-sandbox
 
 Run `scripts/format.sh` to apply the checked-in Swift formatting style. GitHub Actions uses the same `scripts/check.sh` command on pull requests and pushes to `main` with macOS 15 and Xcode 16.4's Swift 6 toolchain. Tests use synthetic fixtures and temporary directories, so they require no personal logs, API credentials, or account access. Formatting violations, compilation errors, and test failures fail CI.
 
-After the tests pass, CI packages and validates a universal app ZIP, including metadata, resources, signature integrity, relocated reports, and startup after extraction. PR artifacts use version `0.0.0`; they are previews, not public releases. See [release maintenance](docs/releases.md) for local packaging, publication gates, and signing limits.
+After the tests pass, CI packages and validates an arm64 app ZIP, including metadata, resources, signature integrity, relocated reports, and startup after extraction. PR artifacts use version `0.0.0`; they are previews, not public releases. See [release maintenance](docs/releases.md) for local packaging, publication gates, and signing limits.

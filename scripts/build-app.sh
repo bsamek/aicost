@@ -4,34 +4,18 @@ cd "$(dirname "$0")/.."
 # Local builds use the existing CLT workaround; CI uses SWIFT_TOOL=swift.
 swift_tool="${SWIFT_TOOL:-scripts/swift-tool.sh}"
 app="$PWD/build/Harness.app"
-archs="${APP_ARCHS:-$(uname -m)}"
 staging="$(mktemp -d /tmp/codex-cost-build.XXXXXX)"
 trap 'rm -rf "$staging"' EXIT
 mkdir -p "$staging/Harness.app/Contents/MacOS" "$staging/Harness.app/Contents/Resources"
-binaries=()
-for arch in $archs; do
-    case "$arch" in arm64|x86_64) ;; *) echo "Unsupported architecture: $arch" >&2; exit 1 ;; esac
-    args=(-c release --product CodexCost --triple "$arch-apple-macosx13.0" --scratch-path "$PWD/.build/app-$arch")
-    "$swift_tool" build "${args[@]}" "$@"
-    bin_path="$("$swift_tool" build "${args[@]}" "$@" --show-bin-path 2>/dev/null)"
-    cp "$bin_path/CodexCost" "$staging/CodexCost-$arch"
-    binaries+=("$staging/CodexCost-$arch")
-    # Copy complete resource bundles, including pricing added by other providers.
-    for resource in "$bin_path"/*.bundle; do
-        [ -d "$resource" ] || continue
-        destination="$staging/Harness.app/Contents/Resources/$(basename "$resource")"
-        if [ -d "$destination" ]; then
-            diff -r "$resource" "$destination"
-        else
-            cp -R "$resource" "$destination"
-        fi
-    done
+args=(-c release --product CodexCost --triple arm64-apple-macosx13.0 --scratch-path "$PWD/.build/app-arm64")
+"$swift_tool" build "${args[@]}" "$@"
+bin_path="$("$swift_tool" build "${args[@]}" "$@" --show-bin-path 2>/dev/null)"
+cp "$bin_path/CodexCost" "$staging/Harness.app/Contents/MacOS/CodexCost"
+# Copy complete resource bundles, including pricing added by other providers.
+for resource in "$bin_path"/*.bundle; do
+    [ -d "$resource" ] || continue
+    cp -R "$resource" "$staging/Harness.app/Contents/Resources/"
 done
-if [ "${#binaries[@]}" -eq 1 ]; then
-    cp "${binaries[0]}" "$staging/Harness.app/Contents/MacOS/CodexCost"
-else
-    /usr/bin/lipo -create "${binaries[@]}" -output "$staging/Harness.app/Contents/MacOS/CodexCost"
-fi
 cp Resources/Info.plist "$staging/Harness.app/Contents/Info.plist"
 python3 - "$staging/Harness.app/Contents/Info.plist" <<'PLIST'
 import os, plistlib, re, sys
@@ -53,4 +37,4 @@ PLIST
 mkdir -p build
 rm -rf "$app"
 mv "$staging/Harness.app" "$app"
-printf 'Built %s (%s)\n' "$app" "$archs"
+printf 'Built %s (%s)\n' "$app" "arm64"

@@ -8,7 +8,7 @@ Harness is a Swift 6 macOS app. Read [CONTRIBUTING.md](CONTRIBUTING.md) for comm
 - Check formatting and all tests: `scripts/check.sh`
 - CLT workaround: `SWIFT_TOOL=scripts/swift-tool.sh scripts/check.sh --disable-sandbox`
 - Build app: `bash scripts/build-app.sh`
-- Validate universal preview: `SWIFT_TOOL=swift scripts/package-release.sh 0.0.0 0`
+- Validate arm64 preview: `SWIFT_TOOL=swift scripts/package-release.sh 0.0.0 0`
 
 Use preview packaging for resource, bundle, build, or release changes. Do not run it concurrently with builds/tests; it temporarily moves `.build`. Report actual checks run and any limitations.
 

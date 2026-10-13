@@ -14,13 +14,13 @@ if [[ ! "$build" =~ ^[0-9]+$ ]]; then
 fi
 shift
 if [ "$#" -gt 0 ]; then shift; fi
-export APP_VERSION="$version" APP_BUILD_VERSION="$build" APP_ARCHS='arm64 x86_64'
+export APP_VERSION="$version" APP_BUILD_VERSION="$build"
 scripts/build-app.sh "$@"
 app="$PWD/build/Harness.app"
 scripts/verify-release.sh "$app" "$version" "$build"
 rm -rf build/release
 mkdir -p build/release
-archive="Harness-$version-universal.zip"
+archive="Harness-$version-arm64.zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$app" "build/release/$archive"
 # Verify the actual download after extraction, including its signature and startup.
 extracted="$(mktemp -d /tmp/codex-cost-release.XXXXXX)"
@@ -29,7 +29,7 @@ trap 'rm -rf "$extracted"' EXIT
 scripts/verify-release.sh "$extracted/Harness.app" "$version" "$build"
 (cd build/release && shasum -a 256 "$archive" > "$archive.sha256")
 cat > build/release/RELEASE-NOTES.md <<NOTES
-Harness $version (build $build) — macOS 13 or later, Apple Silicon and Intel.
+Harness $version (build $build) — macOS 13 or later, Apple Silicon only.
 
 Download \`$archive\`, unzip it, and drag \`Harness.app\` into Applications. Open the app; its total appears in the menu bar. No Swift tools or API key are required.
 
@@ -37,6 +37,6 @@ This release uses an ad-hoc signature. It is **not Developer ID signed or notari
 
 The adjacent SHA-256 file lets you check the downloaded ZIP with \`shasum -a 256 -c $archive.sha256\` in the download folder. It verifies file integrity, not developer identity.
 
-Build source: \`$(git rev-parse HEAD)\`. Public Release creation is gated on passing tests, universal architecture/deployment checks, bundled-resource checks and relocated startup validation. The workflow tests startup on its runner's native architecture; macOS 13 and the other architecture are checked in binary metadata, not on physical Macs.
+Build source: \`$(git rev-parse HEAD)\`. Public Release creation is gated on passing tests, arm64 architecture/deployment checks, bundled-resource checks and relocated startup validation. The workflow tests startup on its Apple Silicon runner; macOS 13 compatibility is checked in binary metadata, not on a physical Mac running macOS 13.
 NOTES
 printf 'Validated release archive: %s\n' "build/release/$archive"
