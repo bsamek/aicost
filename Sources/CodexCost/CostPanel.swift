@@ -22,6 +22,14 @@ struct CostPanel: View {
             }
             Divider()
             HStack(spacing: 12) {
+                if let version = Bundle.main.object(
+                    forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+                {
+                    Text("v\(version)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Harness version \(version)")
+                }
                 Spacer()
                 Button("Restart") {
                     isRestarting = true
