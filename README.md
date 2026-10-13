@@ -1,8 +1,10 @@
-# AI coding costs in your menu bar
+# Token Meter
 
-See the API-equivalent cost of your coding agents in the macOS menu bar. Harness reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
+AI coding costs in your menu bar.
 
-![Expanded Harness panel showing Today and This Month totals with a breakdown across GPT and Claude models](docs/images/usage-panel.png)
+See the API-equivalent cost of your coding agents in the macOS menu bar. Token Meter reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
+
+![Expanded Token Meter panel showing Today and This Month totals with a breakdown across GPT and Claude models](docs/images/usage-panel.png)
 
 *Native app panel captured with synthetic usage data. Models appear alphabetically by provider and family: Claude Haiku, Opus, and Sonnet, then GPT Astra and Sol. Each period shows only models with priced usage.*
 
@@ -24,9 +26,9 @@ These are **token-cost estimates**, not your subscription bill or an exact histo
 
 ## Install and run
 
-Download the Apple Silicon (arm64) ZIP from [the latest release](https://github.com/bsamek/aicost/releases/latest), or build from source using the steps below. Intel Macs are no longer supported.
+Download the Apple Silicon (arm64) ZIP from [the latest release](https://github.com/bsamek/aicost/releases/latest), or build from source using the steps below. Intel Macs are no longer supported. Earlier releases used **Codex Cost** or **Harness**; new releases and source builds use **Token Meter**.
 
-Download `Harness-VERSION-arm64.zip`, unzip it, and drag `Harness.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Harness-VERSION-arm64.zip.sha256`; it does not establish publisher identity.
+Download `Token-Meter-VERSION-arm64.zip`, unzip it, and drag `Token Meter.app` to `/Applications`. Downloads are ad-hoc signed; they are **not Developer ID signed or notarized**. If macOS blocks a download you trust, try opening it once, then use **System Settings → Privacy & Security → Open Anyway** and confirm Open ([Apple's instructions](https://support.apple.com/102445)). The adjacent `.zip.sha256` file checks integrity with `shasum -a 256 -c Token-Meter-VERSION-arm64.zip.sha256`; it does not establish publisher identity.
 
 Build from a checkout:
 
@@ -34,7 +36,7 @@ Build from a checkout:
 git clone https://github.com/bsamek/aicost.git
 cd aicost
 bash scripts/build-app.sh
-open 'build/Harness.app'
+open 'build/Token Meter.app'
 ```
 
 The build targets Apple Silicon (arm64) and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. To update, use **Quit** in the panel, replace the app, and open the new copy; local usage logs live outside the app.
@@ -55,14 +57,14 @@ Finder launches usually do not inherit shell environment variables. For custom r
 ```sh
 CODEX_HOME=/absolute/path/to/codex \
 CLAUDE_CONFIG_DIR=/absolute/path/to/claude \
-'build/Harness.app/Contents/MacOS/CodexCost'
+'build/Token Meter.app/Contents/MacOS/CodexCost'
 ```
 
 The app reads usage and session metadata without changing logs. OpenCode is scanned through a private temporary copy of its database and committed WAL, removed after each scan. It does not access authentication files, upload usage or conversation data, or print conversation text in reports. Its only network activity is downloading the public price catalog described below.
 
 ## Pricing and coverage
 
-Harness downloads provider-specific prices from [models.dev's public API](https://models.dev/api.json) in the background, at most once every 24 hours. It immediately shows cached prices at startup, or bundled prices if no valid cache exists. Valid responses are saved atomically in `~/Library/Caches/Harness/models-dev.json`; failed requests and invalid responses retain the last good cache. Attempts, including failures, are throttled across app restarts. Newly downloaded prices appear on the next normal usage refresh (every 30 seconds).
+Token Meter downloads provider-specific prices from [models.dev's public API](https://models.dev/api.json) in the background, at most once every 24 hours. It immediately shows cached prices at startup, or bundled prices if no valid cache exists. Valid responses are saved atomically in `~/Library/Caches/Harness/models-dev.json`. The cache directory retains its earlier name to preserve existing cached prices. Failed requests and invalid responses retain the last good cache. Attempts, including failures, are throttled across app restarts. Newly downloaded prices appear on the next normal usage refresh (every 30 seconds).
 
 Bundled catalogs remain fallbacks for exact provider/model entries absent from the API and for offline startup: [`pricing.json`](Sources/CostCore/Resources/pricing.json), [`pi-pricing.json`](Sources/CostCore/Resources/pi-pricing.json), and [`opencode-pricing.json`](Sources/CostCore/Resources/opencode-pricing.json). They record verification dates and sources including [OpenAI](https://developers.openai.com/api/docs/pricing), [Claude](https://platform.claude.com/docs/en/about-claude/pricing), [Fireworks](https://docs.fireworks.ai/serverless/pricing), and [OpenCode Console](https://dev.opencode.ai/v2/docs/console/models). Claude's one-hour cache-write rates use verified bundled overrides while the base input price still matches; models.dev supplies only one cache-write price. Unavailable duration rates remain unpriced.
 
@@ -73,13 +75,13 @@ Unknown models and ambiguous usage are excluded from dollar totals. Missing/dele
 ## Diagnostic report
 
 ```sh
-'build/Harness.app/Contents/MacOS/CodexCost' --report
+'build/Token Meter.app/Contents/MacOS/CodexCost' --report
 ```
 
 This prints JSON using the same persisted price cache and accounting rules as the app without opening the UI or downloading prices. The `pricing` object records the source, API fetch time when available, and the bundled verification date; a fetch time is not a verification date. Add an ISO 8601 timestamp for a reproducible cutoff (prices still come from the active cache):
 
 ```sh
-'build/Harness.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
+'build/Token Meter.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
 ```
 
 The report includes file/diagnostic counts, per-model totals, and reasons for unpriced usage. It reads only session metadata and usage.

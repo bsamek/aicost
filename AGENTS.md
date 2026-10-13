@@ -1,6 +1,6 @@
 # Working in this repository
 
-Harness is a Swift 6 macOS app. Read [CONTRIBUTING.md](CONTRIBUTING.md) for commands, [docs/architecture.md](docs/architecture.md) for navigation, and [docs/accounting.md](docs/accounting.md) before changing accounting.
+Token Meter is a Swift 6 macOS app. Read [CONTRIBUTING.md](CONTRIBUTING.md) for commands, [docs/architecture.md](docs/architecture.md) for navigation, and [docs/accounting.md](docs/accounting.md) before changing accounting.
 
 ## Commands
 
@@ -23,6 +23,6 @@ Use preview packaging for resource, bundle, build, or release changes. Do not ru
 
 ## Scope and documentation
 
-Keep changes focused and broad formatting separate from behavior changes. The public app name is Harness; Swift targets, executable, resource bundle, and bundle identity still use CodexCost. Preserve those internal identifiers unless migration is explicitly in scope.
+Keep changes focused and broad formatting separate from behavior changes. The public app name is Token Meter; Swift targets, executable, resource bundle, and bundle identity still use CodexCost. Preserve those internal identifiers unless migration is explicitly in scope.
 
 Current guidance lives in the README, CONTRIBUTING, architecture, accounting, and release documents. The original October 10 spec and plan under `docs/superpowers` are historical records, not instructions to execute or a current backlog.

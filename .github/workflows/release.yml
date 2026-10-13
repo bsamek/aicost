@@ -36,5 +36,5 @@ jobs:
         run: |
           # No Release exists until both tests and extracted-bundle checks pass.
           gh release create "$RELEASE_TAG" release/*.zip release/*.sha256 \
-            --verify-tag --title "Harness $RELEASE_TAG" \
+            --verify-tag --title "Token Meter $RELEASE_TAG" \
             --notes-file release/RELEASE-NOTES.md

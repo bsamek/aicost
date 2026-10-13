@@ -1,6 +1,6 @@
-# Contributing to Harness
+# Contributing to Token Meter
 
-Harness estimates API-equivalent token costs from local coding-agent logs. Start with the [architecture guide](docs/architecture.md) and [accounting rules](docs/accounting.md).
+Token Meter estimates API-equivalent token costs from local coding-agent logs. Start with the [architecture guide](docs/architecture.md) and [accounting rules](docs/accounting.md).
 
 ## Set up
 
@@ -13,7 +13,7 @@ swift --version
 scripts/check.sh
 ```
 
-Open `Package.swift` in Xcode to navigate and debug the package, or use your editor and the commands below. The product and executable remain `CodexCost`; the public app name is Harness.
+Open `Package.swift` in Xcode to navigate and debug the package, or use your editor and the commands below. The product and executable remain `CodexCost`; the public app name is Token Meter.
 
 ## Everyday commands
 
@@ -22,8 +22,8 @@ Open `Package.swift` in Xcode to navigate and debug the package, or use your edi
 | `scripts/format.sh` | Format the manifest, source, and tests in place |
 | `scripts/format.sh --check` | Check formatting without changing files |
 | `scripts/check.sh` | Check formatting, then run all Swift Testing tests |
-| `bash scripts/build-app.sh` | Build and ad-hoc sign `build/Harness.app` |
-| `open 'build/Harness.app'` | Launch the local app |
+| `bash scripts/build-app.sh` | Build and ad-hoc sign `build/Token Meter.app` |
+| `open 'build/Token Meter.app'` | Launch the local app |
 | `SWIFT_TOOL=swift scripts/package-release.sh 0.0.0 0` | Build and validate an arm64 preview ZIP without publishing |
 
 Formatting uses the toolchain's `swift format` and the checked-in `.swift-format`. Use CI's Xcode version when resolving formatter differences between toolchains. Keep broad formatting changes separate from behavior changes.
@@ -47,7 +47,7 @@ Use the matching provider tests in `Tests/CostCoreTests` for parsing, deduplicat
 To inspect the shared accounting path without opening the UI:
 
 ```sh
-'build/Harness.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
+'build/Token Meter.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z
 ```
 
 This reads local usage logs. To use synthetic data, set all four source overrides (`CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `PI_CODING_AGENT_DIR`, and `XDG_DATA_HOME`) to temporary fixture roots; `XDG_DATA_HOME` contains an `opencode` subdirectory. Periods use the Mac's current timezone. See the [README](README.md#usage-and-log-locations) for paths and override details.
