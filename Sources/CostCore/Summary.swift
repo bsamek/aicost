@@ -21,7 +21,7 @@ public struct PeriodCost: Sendable {
         for var row in models {
             switch row.model {
             case "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash",
-                 "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
+                "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
                 row.model = "fireworks/" + row.model.dropFirst("fireworks-ai/".count)
             default: break
             }
@@ -43,20 +43,31 @@ public struct CostSummary: Sendable {
     public var month: PeriodCost
 }
 public enum SummaryBuilder {
-    public static func build(events: [UsageEvent], now: Date, calendar: Calendar, pricing: PricingCatalog) -> CostSummary {
+    public static func build(
+        events: [UsageEvent], now: Date, calendar: Calendar, pricing: PricingCatalog
+    ) -> CostSummary {
         let day = calendar.dateInterval(of: .day, for: now)!
         let month = calendar.dateInterval(of: .month, for: now)!
         func period(_ interval: DateInterval) -> PeriodCost {
             var rows: [String: ModelCost] = [:]
             var result = PeriodCost()
-            for event in events where event.timestamp >= interval.start && event.timestamp < interval.end && event.timestamp <= now {
-                let name = (event.piProvider ?? event.openCodeProvider).map { $0 + "/" + (event.model ?? "Unknown model") } ?? (event.model ?? "Unknown model")
+            for event in events
+            where event.timestamp >= interval.start && event.timestamp < interval.end
+                && event.timestamp <= now
+            {
+                let name =
+                    (event.piProvider ?? event.openCodeProvider).map {
+                        $0 + "/" + (event.model ?? "Unknown model")
+                    } ?? (event.model ?? "Unknown model")
                 var row = rows[name] ?? ModelCost(model: name)
                 let cost = pricing.cost(for: event)
                 if let usd = cost.usd {
-                    result.total += usd; row.total += usd; row.pricedCount += 1
+                    result.total += usd
+                    row.total += usd
+                    row.pricedCount += 1
                 } else {
-                    result.unpricedCount += 1; row.unpricedCount += 1
+                    result.unpricedCount += 1
+                    row.unpricedCount += 1
                     row.reasons.insert(cost.reason ?? "Unavailable")
                 }
                 rows[name] = row

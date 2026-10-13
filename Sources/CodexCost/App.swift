@@ -1,14 +1,15 @@
 import AppKit
-import SwiftUI
 import Combine
 import CostCore
+import SwiftUI
 
 @main
 @MainActor struct CodexCostApp {
     static func main() {
         if CommandLine.arguments.contains("--report") {
             do { try CostReport.printReport() } catch {
-                FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)); exit(1)
+                FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8))
+                exit(1)
             }
             return
         }
@@ -32,14 +33,16 @@ import CostCore
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
             button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
-            button.target = self; button.action = #selector(togglePanel)
+            button.target = self
+            button.action = #selector(togglePanel)
         }
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: CostPanel(
-            model: model,
-            restart: { [weak self] in self?.restart() ?? false },
-            quit: { [weak self] in self?.quit() }
-        ))
+        popover.contentViewController = NSHostingController(
+            rootView: CostPanel(
+                model: model,
+                restart: { [weak self] in self?.restart() ?? false },
+                quit: { [weak self] in self?.quit() }
+            ))
         observation = model.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateTitle() }
         }
@@ -50,14 +53,19 @@ import CostCore
         }
     }
     private func updateTitle() {
-        let total = model.summary.map { dollars($0.today.total) } ?? (model.error == nil ? "…" : "!")
-        let incomplete = model.error != nil || model.diagnostics > 0 || (model.summary?.today.unpricedCount ?? 0) > 0
+        let total =
+            model.summary.map { dollars($0.today.total) } ?? (model.error == nil ? "…" : "!")
+        let incomplete =
+            model.error != nil || model.diagnostics > 0
+            || (model.summary?.today.unpricedCount ?? 0) > 0
         item.button?.title = total
-        item.button?.toolTip = "Harness — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
+        item.button?.toolTip =
+            "Harness — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
     }
     @objc private func togglePanel() {
-        if popover.isShown { popover.performClose(nil) }
-        else if let button = item.button {
+        if popover.isShown {
+            popover.performClose(nil)
+        } else if let button = item.button {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
@@ -72,12 +80,14 @@ import CostCore
         guard !isTerminating else { return true }
         do {
             guard Bundle.main.bundleURL.pathExtension == "app",
-                  let executable = Bundle.main.executableURL,
-                  FileManager.default.isExecutableFile(atPath: executable.path) else {
+                let executable = Bundle.main.executableURL,
+                FileManager.default.isExecutableFile(atPath: executable.path)
+            else {
                 throw CocoaError(.fileNoSuchFile)
             }
-            let helper = AppRelauncher.makeProcess(bundleURL: Bundle.main.bundleURL,
-                                                   processIdentifier: ProcessInfo.processInfo.processIdentifier)
+            let helper = AppRelauncher.makeProcess(
+                bundleURL: Bundle.main.bundleURL,
+                processIdentifier: ProcessInfo.processInfo.processIdentifier)
             try helper.run()
             quit()
             return true

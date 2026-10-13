@@ -1,5 +1,7 @@
 # Codex Cost Implementation Plan
 
+> **Historical plan, October 10, 2026.** Unchecked boxes preserve the original planning record; they are not the current backlog. The app now uses Swift Testing and supports additional agents. Use the current [architecture](../../architecture.md), [accounting](../../accounting.md), and [contributor guide](../../../CONTRIBUTING.md). The workflow instruction below belongs to the historical plan and should not be executed for routine maintenance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for native execution or superpowers:subagent-driven-development if selected by the user. Steps use checkbox syntax for tracking.
 
 **Goal:** Deliver a local macOS menu bar app showing hypothetical API token costs for today and this calendar month, with model breakdowns and totals.

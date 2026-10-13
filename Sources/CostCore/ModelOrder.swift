@@ -16,27 +16,48 @@ struct ModelOrder: Comparable {
         let namespace = parts.count > 1 ? String(parts[0]) : nil
         let name = String(parts.last ?? "")
         switch namespace {
-        case "anthropic", "fireworks", "opencode", "opencode-go", "openrouter": provider = namespace!
+        case "anthropic", "fireworks", "opencode", "opencode-go", "openrouter":
+            provider = namespace!
         case "fireworks-ai": provider = "fireworks"
         case "openai", "openai-codex": provider = "openai"
         case nil where name.hasPrefix("claude-"): provider = "anthropic"
-        case nil where name.hasPrefix("gpt-") || Self.capture("^o[0-9]", in: name) != nil: provider = "openai"
+        case nil where name.hasPrefix("gpt-") || Self.capture("^o[0-9]", in: name) != nil:
+            provider = "openai"
         default: provider = ""
         }
         family = ""
         version = []
-        if let match = Self.capture("^gpt-([0-9]+(?:\\.[0-9]+)*)-(astra|luna|sol|terra)(?:-|$)", in: name) {
-            family = match[2]; version = Self.numbers(match[1])
-        } else if let match = Self.capture("^claude-(fable|haiku|opus|sonnet)-([0-9]+(?:[.-][0-9]{1,3})*)(?:-|$)", in: name) {
-            family = match[1]; version = Self.numbers(match[2])
-        } else if let match = Self.capture("^claude-([0-9]+(?:[.-][0-9]{1,3})*)-(fable|haiku|opus|sonnet)(?:-|$)", in: name) {
-            family = match[2]; version = Self.numbers(match[1])
-        } else if let match = Self.capture("^gpt-([0-9]+(?:\\.[0-9]+)*)(?:o)?(?:-(?:pro|mini|nano|codex|max|turbo|instruct|preview|[0-9]+))*$", in: name) {
-            family = "gpt"; version = Self.numbers(match[1])
-        } else if let match = Self.capture("^o([0-9]+(?:\\.[0-9]+)*)(?:-(?:mini|pro|preview|[0-9]+))*$", in: name) {
-            family = "o"; version = Self.numbers(match[1])
-        } else if let match = Self.capture("^(deepseek|glm)-v?([0-9]+(?:[p.][0-9]+)*)(?:-|$)", in: name) {
-            family = match[1]; version = Self.numbers(match[2])
+        if let match = Self.capture(
+            "^gpt-([0-9]+(?:\\.[0-9]+)*)-(astra|luna|sol|terra)(?:-|$)", in: name)
+        {
+            family = match[2]
+            version = Self.numbers(match[1])
+        } else if let match = Self.capture(
+            "^claude-(fable|haiku|opus|sonnet)-([0-9]+(?:[.-][0-9]{1,3})*)(?:-|$)", in: name)
+        {
+            family = match[1]
+            version = Self.numbers(match[2])
+        } else if let match = Self.capture(
+            "^claude-([0-9]+(?:[.-][0-9]{1,3})*)-(fable|haiku|opus|sonnet)(?:-|$)", in: name)
+        {
+            family = match[2]
+            version = Self.numbers(match[1])
+        } else if let match = Self.capture(
+            "^gpt-([0-9]+(?:\\.[0-9]+)*)(?:o)?(?:-(?:pro|mini|nano|codex|max|turbo|instruct|preview|[0-9]+))*$",
+            in: name)
+        {
+            family = "gpt"
+            version = Self.numbers(match[1])
+        } else if let match = Self.capture(
+            "^o([0-9]+(?:\\.[0-9]+)*)(?:-(?:mini|pro|preview|[0-9]+))*$", in: name)
+        {
+            family = "o"
+            version = Self.numbers(match[1])
+        } else if let match = Self.capture(
+            "^(deepseek|glm)-v?([0-9]+(?:[p.][0-9]+)*)(?:-|$)", in: name)
+        {
+            family = match[1]
+            version = Self.numbers(match[2])
         }
         recognized = !provider.isEmpty && !family.isEmpty
     }
@@ -64,7 +85,9 @@ struct ModelOrder: Comparable {
 
     private static func capture(_ pattern: String, in name: String) -> [String]? {
         guard let expression = try? NSRegularExpression(pattern: pattern),
-              let match = expression.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) else { return nil }
+            let match = expression.firstMatch(
+                in: name, range: NSRange(name.startIndex..., in: name))
+        else { return nil }
         return (0..<match.numberOfRanges).map { index in
             Range(match.range(at: index), in: name).map { String(name[$0]) } ?? ""
         }
