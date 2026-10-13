@@ -11,4 +11,9 @@
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
+<key>SUFeedURL</key><string>https://github.com/bsamek/aicost/releases/latest/download/appcast.xml</string>
+<key>SUPublicEDKey</key><string>WO/7++Cq5hZ2oDYIChvpqWWpyHJrouvg+Eu8DZ6EWqM=</string>
+<key>SUEnableAutomaticChecks</key><false/>
+<key>SUAllowsAutomaticUpdates</key><false/>
+<key>SUSendProfileInfo</key><false/>
 </dict></plist>

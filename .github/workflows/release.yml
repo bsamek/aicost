@@ -20,21 +20,32 @@ jobs:
 
   publish:
     needs: validate
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     permissions:
       contents: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: macos-release
           path: release
-      - name: Publish validated ZIP and checksum
+      - name: Sign update and verify against embedded public key
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: |
+          chmod +x release/sign_update
+          python3 scripts/create-appcast.py release "$RELEASE_REPOSITORY" "$RELEASE_TAG" release/sign_update
+      - name: Publish validated ZIP, checksum and signed-update feed
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           # No Release exists until both tests and extracted-bundle checks pass.
-          gh release create "$RELEASE_TAG" release/*.zip release/*.sha256 \
+          gh release create "$RELEASE_TAG" release/*.zip release/*.sha256 release/appcast.xml \
             --verify-tag --title "Token Meter $RELEASE_TAG" \
             --notes-file release/RELEASE-NOTES.md

@@ -26,6 +26,7 @@ Local logs / OpenCode database snapshot
 | Day/month totals and ordering | `Sources/CostCore/Summary.swift`, `ModelOrder.swift` |
 | Source overrides, background loading, refresh state | `Sources/CodexCost/AppModel.swift` |
 | Menu bar lifecycle and automatic refresh | `Sources/CodexCost/App.swift` |
+| Sparkle update lifecycle and configuration | `Sources/CodexCost/AppUpdater.swift`, `UpdateConfiguration.swift` |
 | Panel and restart helper | `Sources/CodexCost/CostPanel.swift`, `AppRelauncher.swift` |
 | JSON diagnostics | `Sources/CodexCost/CostReport.swift` |
 | Metadata and packaging | `Resources/Info.plist`, `scripts/build-app.sh`, `scripts/package-release.sh` |
@@ -43,3 +44,9 @@ The models.dev API supplies provider/model rates through `ModelsDevCatalog`; `Pr
 `Tests/CostCoreTests` covers accounting with synthetic logs and temporary databases. `Tests/AppTests` covers refresh state, source resolution, and relaunch behavior. Both use Swift Testing. Follow [CONTRIBUTING](../CONTRIBUTING.md) for local commands.
 
 CI runs formatting and tests before arm64 packaging. Packaging validates metadata, the arm64 architecture, signatures, resources, and execution after relocation/extraction. Version-tag releases reuse the validation workflow before publication. See [release maintenance](releases.md) for signing limits and validation details.
+
+## App updates
+
+The GUI creates an `AppUpdater` at launch, using Sparkle's standard updater controller. The panel exposes manual checks and an opt-in background-check toggle. Silent automatic installation and profile reporting are disabled. Scheduled updates that would otherwise appear behind other apps instead show an arrow in the menu bar and an **Update Available…** button in the panel. Clicking it brings Sparkle’s update prompt forward. Bare SwiftPM executables and bundles without valid HTTPS feed/public-key configuration do not start an updater. The `--report` path returns before any updater is created. Sparkle state does not affect accounting refreshes.
+
+The custom builder embeds Sparkle's complete versioned framework and signs nested helpers inside out before signing the app. Relocated release checks verify framework linkage, symlinks, helpers and app metadata. The release pipeline signs the validated ZIP and verifies the signature against the public key inside that ZIP before publishing its appcast.

@@ -12,7 +12,7 @@ See the API-equivalent cost of your coding agents in the macOS menu bar. Token M
 
 - Today's total at a glance; click for Today and This Month totals and a breakdown by model.
 - Automatic refresh every 30 seconds, using your Mac's timezone for days and calendar months.
-- Local, read-only usage processing. No API key, account connection, or third-party dependencies. Prices refresh from models.dev with an offline cache.
+- Local, read-only usage processing. No API key or account connection. Sparkle handles app updates. Prices refresh from models.dev with an offline cache.
 - Restart and Quit controls in the panel.
 - A read-only JSON report for diagnostics and reproducible accounting.
 
@@ -39,7 +39,7 @@ bash scripts/build-app.sh
 open 'build/Token Meter.app'
 ```
 
-The build targets Apple Silicon (arm64) and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. To update, use **Quit** in the panel, replace the app, and open the new copy; local usage logs live outside the app.
+The build targets Apple Silicon (arm64) and ad-hoc signs the bundle locally. Keep the app in the build folder or copy it to `/Applications`. Open it again after restarting your Mac. Use **Check for Updates…** in the panel to install newer releases. Enable **Automatically check for updates** for background checks; installation still requires confirmation. Local usage logs live outside the app. Existing versions without Sparkle need one manual update to this version.
 
 ## Usage and log locations
 

@@ -6,6 +6,8 @@ private typealias PanelState<Value> = SwiftUI.State<Value>
 
 struct CostPanel: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var updates: AppUpdater
+    let checkForUpdates: () -> Void
     let restart: () -> Bool
     let quit: () -> Void
     @PanelState private var isRestarting = false
@@ -21,6 +23,22 @@ struct CostPanel: View {
                     .foregroundStyle(.secondary)
             }
             Divider()
+            HStack {
+                Button(
+                    updates.updateAvailable ? "Update Available…" : "Check for Updates…",
+                    action: checkForUpdates
+                )
+                .disabled(!updates.canCheckForUpdates && !updates.updateAvailable)
+                Spacer()
+            }
+            Toggle(
+                "Automatically check for updates",
+                isOn: Binding(
+                    get: { updates.automaticallyChecksForUpdates },
+                    set: { updates.automaticallyChecksForUpdates = $0 }
+                )
+            )
+            .disabled(!updates.isAvailable)
             HStack(spacing: 12) {
                 if let version = Bundle.main.object(
                     forInfoDictionaryKey: "CFBundleShortVersionString") as? String
@@ -28,7 +46,7 @@ struct CostPanel: View {
                     Text("v\(version)")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Harness version \(version)")
+                        .accessibilityLabel("Token Meter version \(version)")
                 }
                 Spacer()
                 Button("Restart") {
