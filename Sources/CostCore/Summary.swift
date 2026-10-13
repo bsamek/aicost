@@ -12,6 +12,31 @@ public struct PeriodCost: Sendable {
     public var total: Decimal = 0
     public var models: [ModelCost] = []
     public var unpricedCount: Int = 0
+
+    /// Combine verified serving-provider aliases only for display. The raw
+    /// source rows remain available to the diagnostic report and accounting.
+    public var displayedModels: [ModelCost] {
+        var rows: [ModelCost] = []
+        var indices: [String: Int] = [:]
+        for var row in models {
+            switch row.model {
+            case "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash",
+                 "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
+                row.model = "fireworks/" + row.model.dropFirst("fireworks-ai/".count)
+            default: break
+            }
+            if let index = indices[row.model] {
+                rows[index].total += row.total
+                rows[index].pricedCount += row.pricedCount
+                rows[index].unpricedCount += row.unpricedCount
+                rows[index].reasons.formUnion(row.reasons)
+            } else {
+                indices[row.model] = rows.count
+                rows.append(row)
+            }
+        }
+        return rows
+    }
 }
 public struct CostSummary: Sendable {
     public var today: PeriodCost

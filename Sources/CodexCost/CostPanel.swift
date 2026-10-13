@@ -44,7 +44,7 @@ struct CostPanel: View {
                 Text(dollars(value.total)).monospacedDigit()
                     .accessibilityLabel("\(title) total, \(dollars(value.total))")
             }.fontWeight(.semibold)
-            ForEach(value.models.filter { $0.pricedCount > 0 }) { row in
+            ForEach(value.displayedModels.filter { $0.pricedCount > 0 }) { row in
                 HStack {
                     Text(displayModel(row.model))
                     Spacer()
@@ -59,8 +59,8 @@ struct CostPanel: View {
         if model.hasPrefix("openai/") { return "OpenAI · " + displayModel(String(model.dropFirst("openai/".count))) }
         if model.hasPrefix("anthropic/") { return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count))) }
         return switch model {
-        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": "DeepSeek V4.1 Flash"
-        case "fireworks/accounts/fireworks/models/glm-5p3-flash": "GLM 5.3 Flash"
+        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": "DeepSeek V4.1 Flash · Fireworks"
+        case "fireworks/accounts/fireworks/models/glm-5p3-flash": "GLM 5.3 Flash · Fireworks"
         case "gpt-6.1-sol": "GPT-6.1 Sol"
         case "gpt-6-sol": "GPT-6 Sol"
         case "gpt-6-astra": "GPT-6 Astra"
