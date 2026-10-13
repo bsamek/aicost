@@ -10,16 +10,49 @@ struct CostPanel: View {
     let checkForUpdates: () -> Void
     let restart: () -> Bool
     let quit: () -> Void
+
+    var body: some View {
+        CostPanelContent(
+            summary: model.summary, error: model.error,
+            updates: PanelUpdateState(
+                updateAvailable: updates.updateAvailable,
+                canCheckForUpdates: updates.canCheckForUpdates, isAvailable: updates.isAvailable),
+            automaticallyChecksForUpdates: Binding(
+                get: { updates.automaticallyChecksForUpdates },
+                set: { updates.automaticallyChecksForUpdates = $0 }),
+            version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+                as? String,
+            checkForUpdates: checkForUpdates, restart: restart, quit: quit)
+    }
+}
+
+struct PanelUpdateState {
+    let updateAvailable: Bool
+    let canCheckForUpdates: Bool
+    let isAvailable: Bool
+}
+
+/// Shared native presentation for the live popover and synthetic UI previews.
+/// This view never starts scanners or the updater; its caller supplies state and actions.
+struct CostPanelContent: View {
+    let summary: CostSummary?
+    let error: String?
+    let updates: PanelUpdateState
+    @Binding var automaticallyChecksForUpdates: Bool
+    let version: String?
+    let checkForUpdates: () -> Void
+    let restart: () -> Bool
+    let quit: () -> Void
     @PanelState private var isRestarting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let summary = model.summary {
+            if let summary {
                 period("Today", summary.today)
                 Divider()
                 period("This Month", summary.month)
             } else {
-                Text(model.error == nil ? "Reading usage…" : "Usage unavailable")
+                Text(error == nil ? "Reading usage…" : "Usage unavailable")
                     .foregroundStyle(.secondary)
             }
             Divider()
@@ -28,21 +61,26 @@ struct CostPanel: View {
                     updates.updateAvailable ? "Update Available…" : "Check for Updates…",
                     action: checkForUpdates
                 )
+                .fixedSize()
                 .disabled(!updates.canCheckForUpdates && !updates.updateAvailable)
                 Spacer()
-            }
-            Toggle(
-                "Automatically check for updates",
-                isOn: Binding(
-                    get: { updates.automaticallyChecksForUpdates },
-                    set: { updates.automaticallyChecksForUpdates = $0 }
+                Toggle(
+                    "Auto-check",
+                    isOn: $automaticallyChecksForUpdates
                 )
-            )
-            .disabled(!updates.isAvailable)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .tint(.gray)
+                .fixedSize()
+                .accessibilityLabel("Automatically check for updates")
+                .help("Automatically check for updates")
+                .disabled(!updates.isAvailable)
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .buttonStyle(.borderless)
             HStack(spacing: 12) {
-                if let version = Bundle.main.object(
-                    forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-                {
+                if let version {
                     Text("v\(version)")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)

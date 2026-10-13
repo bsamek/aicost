@@ -28,6 +28,7 @@ Local logs / OpenCode database snapshot
 | Menu bar lifecycle and automatic refresh | `Sources/CodexCost/App.swift` |
 | Sparkle update lifecycle and configuration | `Sources/CodexCost/AppUpdater.swift`, `UpdateConfiguration.swift` |
 | Panel and restart helper | `Sources/CodexCost/CostPanel.swift`, `AppRelauncher.swift` |
+| Native UI captures and synthetic preview states | `Tests/AppTests/PanelPreviewTests.swift`, `scripts/preview-ui.sh`, [validation guide](ui-validation.md) |
 | JSON diagnostics | `Sources/CodexCost/CostReport.swift` |
 | Metadata and packaging | `Resources/Info.plist`, `scripts/build-app.sh`, `scripts/package-release.sh` |
 
@@ -41,7 +42,7 @@ Each provider retains its own token semantics and deduplication rules. `UsageSca
 
 The models.dev API supplies provider/model rates through `ModelsDevCatalog`; `PricingStore` validates responses, persists a last-good cache, and throttles background fetches to once every 24 hours. Startup reads cached prices or bundled fallback immediately; the report reads the same disk cache without fetching. Three fallback pricing JSON catalogs live in `Sources/CostCore/Resources` and are packaged into the CostCore resource bundle. Command-line builds use SwiftPM resource lookup; `.app` builds load the copied bundle from app resources. Token Meter is the display name; the executable, Swift targets, and resource bundle retain CodexCost identifiers.
 
-`Tests/CostCoreTests` covers accounting with synthetic logs and temporary databases. `Tests/AppTests` covers refresh state, source resolution, and relaunch behavior. Both use Swift Testing. Follow [CONTRIBUTING](../CONTRIBUTING.md) for local commands.
+`Tests/CostCoreTests` covers accounting with synthetic logs and temporary databases. `Tests/AppTests` covers refresh state, source resolution, and relaunch behavior, plus an opt-in native panel capture harness. `CostPanel` adapts observable app/updater state into `CostPanelContent`, the presentation shared with native captures. Both test targets use Swift Testing. Follow [CONTRIBUTING](../CONTRIBUTING.md) for local commands.
 
 CI runs formatting and tests before arm64 packaging. Packaging validates metadata, the arm64 architecture, signatures, resources, and execution after relocation/extraction. Version-tag releases reuse the validation workflow before publication. See [release maintenance](releases.md) for signing limits and validation details.
 

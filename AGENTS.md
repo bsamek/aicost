@@ -7,10 +7,13 @@ Token Meter is a Swift 6 macOS app. Read [CONTRIBUTING.md](CONTRIBUTING.md) for 
 - Format: `scripts/format.sh`
 - Check formatting and all tests: `scripts/check.sh`
 - CLT workaround: `SWIFT_TOOL=scripts/swift-tool.sh scripts/check.sh --disable-sandbox`
+- Native UI captures: `scripts/preview-ui.sh` (CLT: `SWIFT_TOOL=scripts/swift-tool.sh scripts/preview-ui.sh`)
 - Build app: `bash scripts/build-app.sh`
 - Validate arm64 preview: `SWIFT_TOOL=swift scripts/package-release.sh 0.0.0 0`
 
 Use preview packaging for resource, bundle, build, or release changes. Do not run it concurrently with builds/tests; it temporarily moves `.build`. Report actual checks run and any limitations.
+
+For panel appearance changes, also run the native UI capture command and inspect its PNGs before claiming visual validation. Read [docs/ui-validation.md](docs/ui-validation.md) for the workflow and limits. Use the real shared panel with synthetic state; do not substitute HTML mockups or ask the user to perform routine visual QA. Capturing images is not itself a visual review. The harness briefly shows native windows but never installs or replaces the app.
 
 ## Invariants
 
