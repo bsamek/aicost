@@ -1,5 +1,5 @@
-import SwiftUI
 import CostCore
+import SwiftUI
 
 // Select the property wrapper explicitly on SDKs that also export a State macro.
 private typealias PanelState<Value> = SwiftUI.State<Value>
@@ -55,9 +55,15 @@ struct CostPanel: View {
     }
 
     private func displayModel(_ model: String) -> String {
-        if model.hasPrefix("openai-codex/") { return "Pi · " + displayModel(String(model.dropFirst("openai-codex/".count))) }
-        if model.hasPrefix("openai/") { return "OpenAI · " + displayModel(String(model.dropFirst("openai/".count))) }
-        if model.hasPrefix("anthropic/") { return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count))) }
+        if model.hasPrefix("openai-codex/") {
+            return "Pi · " + displayModel(String(model.dropFirst("openai-codex/".count)))
+        }
+        if model.hasPrefix("openai/") {
+            return "OpenAI · " + displayModel(String(model.dropFirst("openai/".count)))
+        }
+        if model.hasPrefix("anthropic/") {
+            return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count)))
+        }
         return switch model {
         case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": "DeepSeek V4.1 Flash · Fireworks"
         case "fireworks/accounts/fireworks/models/glm-5p3-flash": "GLM 5.3 Flash · Fireworks"
