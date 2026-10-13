@@ -4,7 +4,7 @@ Token Meter estimates API-equivalent token costs from local coding-agent logs. S
 
 ## Set up
 
-Use an Apple Silicon Mac with Swift 6 and Apple's Command Line Tools or Xcode. The app supports macOS 13 and later; CI uses macOS 15 and Xcode 16.4. No third-party Swift dependencies, API keys, or account connections are needed.
+Use an Apple Silicon Mac with Swift 6 and Apple's Command Line Tools or Xcode. The app supports macOS 13 and later; CI uses macOS 15 and Xcode 16.4. Sparkle 2 is the app’s only third-party Swift dependency. Building and running the app needs no API keys or account connections.
 
 ```sh
 git clone https://github.com/bsamek/aicost.git
@@ -52,6 +52,6 @@ To inspect the shared accounting path without opening the UI:
 
 This reads local usage logs. To use synthetic data, set all four source overrides (`CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `PI_CODING_AGENT_DIR`, and `XDG_DATA_HOME`) to temporary fixture roots; `XDG_DATA_HOME` contains an `opencode` subdirectory. Periods use the Mac's current timezone. See the [README](README.md#usage-and-log-locations) for paths and override details.
 
-Run `scripts/check.sh` before submitting a PR. For resource, bundle-loading, build-script, or release-workflow changes, also run arm64 preview packaging. It launches a temporary app instance and validates the extracted bundle. See [release maintenance](docs/releases.md) for the checks and their limits.
+Run `scripts/check.sh` and `python3 -B -m unittest discover -s Tests/ReleaseTests -v` before submitting a PR. SwiftPM must resolve Sparkle before the signed-feed tests. For resource, bundle-loading, build-script, or release-workflow changes, also run arm64 preview packaging. It launches a temporary app instance and validates the extracted bundle. See [release maintenance](docs/releases.md) for the checks and their limits.
 
 Describe the problem, resulting behavior, and commands you ran in the PR. Mention checks you could not run. Update current documentation when changing formats, pricing coverage, commands, or user behavior. Pushing a version tag triggers publication; preview packaging does not.

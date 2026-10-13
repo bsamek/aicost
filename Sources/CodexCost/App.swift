@@ -23,13 +23,16 @@ import SwiftUI
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     private let model = AppModel()
+    private let updates = AppUpdater()
     private var item: NSStatusItem!
     private let popover = NSPopover()
     private var timer: Timer?
     private var observation: AnyCancellable?
+    private var updateObservation: AnyCancellable?
     private var isTerminating = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        updates.start()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
             button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
@@ -40,10 +43,18 @@ import SwiftUI
         popover.contentViewController = NSHostingController(
             rootView: CostPanel(
                 model: model,
+                updates: updates,
+                checkForUpdates: { [weak self] in
+                    self?.popover.performClose(nil)
+                    self?.updates.checkForUpdates()
+                },
                 restart: { [weak self] in self?.restart() ?? false },
                 quit: { [weak self] in self?.quit() }
             ))
         observation = model.objectWillChange.sink { [weak self] _ in
+            Task { @MainActor in self?.updateTitle() }
+        }
+        updateObservation = updates.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateTitle() }
         }
         updateTitle()
@@ -58,9 +69,10 @@ import SwiftUI
         let incomplete =
             model.error != nil || model.diagnostics > 0
             || (model.summary?.today.unpricedCount ?? 0) > 0
-        item.button?.title = total
+        item.button?.title = total + (updates.updateAvailable ? " ↑" : "")
         item.button?.toolTip =
             "Token Meter — today's estimated API token cost" + (incomplete ? " (incomplete)" : "")
+            + (updates.updateAvailable ? " — update available" : "")
     }
     @objc private func togglePanel() {
         if popover.isShown {
@@ -106,6 +118,8 @@ import SwiftUI
         timer = nil
         observation?.cancel()
         observation = nil
+        updateObservation?.cancel()
+        updateObservation = nil
         popover.close()
         if let item { NSStatusBar.system.removeStatusItem(item) }
         item = nil

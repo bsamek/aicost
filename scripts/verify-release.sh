@@ -19,6 +19,19 @@ with (app / 'Contents/Info.plist').open('rb') as stream:
 assert info['CFBundleShortVersionString'] == version, info
 assert info['CFBundleVersion'] == build, info
 assert info['LSMinimumSystemVersion'] == '13.0', info
+import base64
+assert len(base64.b64decode(info['SUPublicEDKey'], validate=True)) == 32
+assert info['SUFeedURL'] == 'https://github.com/bsamek/aicost/releases/latest/download/appcast.xml'
+assert info['SUEnableAutomaticChecks'] is False
+assert info['SUAllowsAutomaticUpdates'] is False
+framework = app / 'Contents/Frameworks/Sparkle.framework'
+assert (framework / 'Versions/Current').is_symlink(), framework
+for helper in ('Sparkle', 'Autoupdate', 'Updater.app/Contents/MacOS/Updater',
+               'XPCServices/Downloader.xpc/Contents/MacOS/Downloader',
+               'XPCServices/Installer.xpc/Contents/MacOS/Installer'):
+    assert (framework / 'Versions/B' / helper).is_file(), helper
+linked = subprocess.check_output(['/usr/bin/otool', '-L', str(app / 'Contents/MacOS/CodexCost')], text=True)
+assert '@rpath/Sparkle.framework/' in linked, linked
 # Every source resource must survive packaging, irrespective of provider filenames.
 for source in pathlib.Path('Sources').glob('*/Resources/*'):
     if source.is_file():
