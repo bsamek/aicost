@@ -21,7 +21,7 @@ public struct PeriodCost: Sendable {
         for var row in models {
             switch row.model {
             case "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash",
-                 "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
+                "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
                 row.model = "fireworks/" + row.model.dropFirst("fireworks-ai/".count)
             default: break
             }

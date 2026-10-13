@@ -65,7 +65,8 @@ struct CostPanel: View {
             return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count)))
         }
         return switch model {
-        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash": "DeepSeek V4.1 Flash · Fireworks"
+        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash":
+            "DeepSeek V4.1 Flash · Fireworks"
         case "fireworks/accounts/fireworks/models/glm-5p3-flash": "GLM 5.3 Flash · Fireworks"
         case "gpt-6.1-sol": "GPT-6.1 Sol"
         case "gpt-6-sol": "GPT-6 Sol"
