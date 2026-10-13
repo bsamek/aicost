@@ -32,7 +32,7 @@ jobs:
         run: scripts/check.sh
 
   package:
-    name: Universal app and ZIP validation
+    name: Apple Silicon app and ZIP validation
     needs: test
     runs-on: macos-15
     timeout-minutes: 20
@@ -43,7 +43,7 @@ jobs:
       RELEASE_BUILD: ${{ inputs.release_build || '0' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build, package and verify universal app
+      - name: Build, package and verify Apple Silicon app
         run: scripts/package-release.sh "$RELEASE_VERSION" "$RELEASE_BUILD"
       - uses: actions/upload-artifact@v4
         with:
