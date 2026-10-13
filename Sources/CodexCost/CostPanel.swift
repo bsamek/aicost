@@ -37,6 +37,9 @@ struct CostPanel: View {
                 }
                 Button("Quit", action: quit)
             }
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .buttonStyle(.borderless)
             .disabled(isRestarting)
         }
         .font(.system(size: 13))
