@@ -1,6 +1,4 @@
-# Harness
-
-Coding agent usage and cost.
+# AI coding costs in your menu bar
 
 See the API-equivalent cost of your coding agents in the macOS menu bar. Harness reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
 
