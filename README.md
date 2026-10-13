@@ -10,7 +10,7 @@ See the API-equivalent cost of your coding agents in the macOS menu bar. Harness
 
 - Today's total at a glance; click for Today and This Month totals and a breakdown by model.
 - Automatic refresh every 30 seconds, using your Mac's timezone for days and calendar months.
-- Local, read-only processing. No API key, account connection, third-party dependencies, or network activity.
+- Local, read-only usage processing. No API key, account connection, or third-party dependencies. Prices refresh from models.dev with an offline cache.
 - Restart and Quit controls in the panel.
 - A read-only JSON report for diagnostics and reproducible accounting.
 
@@ -58,13 +58,15 @@ CLAUDE_CONFIG_DIR=/absolute/path/to/claude \
 'build/Harness.app/Contents/MacOS/CodexCost'
 ```
 
-The app reads usage and session metadata without changing logs. OpenCode is scanned through a private temporary copy of its database and committed WAL, removed after each scan. It does not access authentication files, send data to a server, or print conversation text in reports.
+The app reads usage and session metadata without changing logs. OpenCode is scanned through a private temporary copy of its database and committed WAL, removed after each scan. It does not access authentication files, upload usage or conversation data, or print conversation text in reports. Its only network activity is downloading the public price catalog described below.
 
 ## Pricing and coverage
 
-Bundled catalogs record rate sources and verification dates: [`pricing.json`](Sources/CostCore/Resources/pricing.json), [`pi-pricing.json`](Sources/CostCore/Resources/pi-pricing.json), and [`opencode-pricing.json`](Sources/CostCore/Resources/opencode-pricing.json). Sources include [OpenAI](https://developers.openai.com/api/docs/pricing), [Claude](https://platform.claude.com/docs/en/about-claude/pricing), [Fireworks](https://docs.fireworks.ai/serverless/pricing), and [OpenCode Console](https://dev.opencode.ai/v2/docs/console/models).
+Harness downloads provider-specific prices from [models.dev's public API](https://models.dev/api.json) in the background, at most once every 24 hours. It immediately shows cached prices at startup, or bundled prices if no valid cache exists. Valid responses are saved atomically in `~/Library/Caches/Harness/models-dev.json`; failed requests and invalid responses retain the last good cache. Attempts, including failures, are throttled across app restarts. Newly downloaded prices appear on the next normal usage refresh (every 30 seconds).
 
-The bundled Standard rates apply to all displayed history. Input, cache usage, and output are priced separately; long-context tiers use recorded request input. Repeated counters, identifiable inherited history, and duplicate messages are handled within each agent's accounting format. Provider/model rows stay separate where provider-specific pricing matters. The panel combines Pi's `fireworks` and OpenCode's `fireworks-ai` rows for the verified DeepSeek V4.1 Flash and GLM 5.3 Flash models, with a readable Fireworks label; the diagnostic report retains the original source rows. Positive costs below one cent display as `<$0.01`; exact zero displays as `$0.00`.
+Bundled catalogs remain fallbacks for exact provider/model entries absent from the API and for offline startup: [`pricing.json`](Sources/CostCore/Resources/pricing.json), [`pi-pricing.json`](Sources/CostCore/Resources/pi-pricing.json), and [`opencode-pricing.json`](Sources/CostCore/Resources/opencode-pricing.json). They record verification dates and sources including [OpenAI](https://developers.openai.com/api/docs/pricing), [Claude](https://platform.claude.com/docs/en/about-claude/pricing), [Fireworks](https://docs.fireworks.ai/serverless/pricing), and [OpenCode Console](https://dev.opencode.ai/v2/docs/console/models). Claude's one-hour cache-write rates use verified bundled overrides while the base input price still matches; models.dev supplies only one cache-write price. Unavailable duration rates remain unpriced.
+
+The active catalog's Standard rates apply to all displayed history, so a price refresh can change historical estimates. Input, cache usage, and output are priced separately; context tiers use recorded request input, including multiple API tiers. Repeated counters, identifiable inherited history, and duplicate messages are handled within each agent's accounting format. Provider/model rows stay separate where provider-specific pricing matters. OpenRouter serving routes and separate reasoning-token rates remain unsupported. The panel combines Pi's `fireworks` and OpenCode's `fireworks-ai` rows for the verified DeepSeek V4.1 Flash and GLM 5.3 Flash models, with a readable Fireworks label; the diagnostic report retains the original source rows. Positive costs below one cent display as `<$0.01`; exact zero displays as `$0.00`.
 
 Unknown models and ambiguous usage are excluded from dollar totals. Missing/deleted logs, cloud-only or unrecorded requests, non-token tool charges, fast/priority modes, regional premiums, custom prices, and negotiated discounts are outside coverage. Local formats are not stable billing APIs, so estimates can differ from invoices and historical rates. See [accounting and pricing coverage](docs/accounting.md) for supported provider/model IDs, cache-write rules, deduplication, schema support, and other limits.
 
@@ -74,7 +76,7 @@ Unknown models and ambiguous usage are excluded from dollar totals. Missing/dele
 'build/Harness.app/Contents/MacOS/CodexCost' --report
 ```
 
-This prints JSON with the same accounting totals as the app without opening the UI. Add an ISO 8601 timestamp for a reproducible cutoff:
+This prints JSON using the same persisted price cache and accounting rules as the app without opening the UI or downloading prices. The `pricing` object records the source, API fetch time when available, and the bundled verification date; a fetch time is not a verification date. Add an ISO 8601 timestamp for a reproducible cutoff (prices still come from the active cache):
 
 ```sh
 'build/Harness.app/Contents/MacOS/CodexCost' --report --at 2026-10-12T16:00:00Z

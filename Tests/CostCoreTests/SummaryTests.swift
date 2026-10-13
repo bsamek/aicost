@@ -107,6 +107,16 @@ private func orderedSummary(_ events: [UsageEvent], models: [String]) throws -> 
     ])
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "America/New_York")!
-    return SummaryBuilder.build(events: events, now: ISO8601DateFormatter().date(from: "2026-10-10T15:00:00Z")!,
+    // Raw Claude IDs belong to Claude usage; don't route ordering fixtures through Codex pricing.
+    let attributed = try events.map { event in
+        var event = event
+        if event.model?.hasPrefix("claude-") == true {
+            let data = try JSONSerialization.data(withJSONObject: ["input_tokens": event.usage.input,
+                "cache_read_input_tokens": event.usage.cached, "cache_creation_input_tokens": 0, "output_tokens": event.usage.output])
+            event.claudeUsage = try JSONDecoder().decode(ClaudeTokenUsage.self, from: data)
+        }
+        return event
+    }
+    return SummaryBuilder.build(events: attributed, now: ISO8601DateFormatter().date(from: "2026-10-10T15:00:00Z")!,
                                 calendar: calendar, pricing: try PricingCatalog(data: data))
 }

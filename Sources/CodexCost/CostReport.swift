@@ -10,7 +10,7 @@ enum CostReport {
             guard let date = ISO8601DateFormatter().date(from: args[index + 1]) else { throw ReportError.invalidDate }
             now = date
         } else { now = Date() }
-        let pricing = try PricingCatalog.load()
+        let pricing = try PricingStore.cachedCatalog()
         let scan = try UsageScanner().scan(codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome())
         let summary = SummaryBuilder.build(events: scan.events, now: now, calendar: .current, pricing: pricing)
         func period(_ cost: PeriodCost) -> [String: Any] {
@@ -18,7 +18,9 @@ enum CostReport {
              "unpriced": cost.unpricedCount,
              "models": cost.models.map { ["model": $0.model, "total": NSDecimalNumber(decimal: $0.total).stringValue, "unpriced": $0.unpricedCount, "reasons": $0.reasons.sorted()] as [String: Any] }]
         }
-        let report: [String: Any] = ["today": period(summary.today), "month": period(summary.month),
+        var pricingInfo: [String: Any] = ["source": pricing.source, "bundledVerifiedAt": pricing.verifiedAt]
+        if let date = pricing.fetchedAt { pricingInfo["fetchedAt"] = ISO8601DateFormatter().string(from: date) }
+        let report: [String: Any] = ["today": period(summary.today), "month": period(summary.month), "pricing": pricingInfo,
                                     "diagnostics": scan.diagnostics, "files": scan.fileCount, "asOf": ISO8601DateFormatter().string(from: now)]
         let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
         FileHandle.standardOutput.write(data + Data("\n".utf8))

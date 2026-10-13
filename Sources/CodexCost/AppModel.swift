@@ -10,13 +10,19 @@ struct LoadedUsage: Sendable {
 }
 actor UsageLoader {
     private let scanner = UsageScanner()
+    private let pricingStore: PricingStore
     private let home: URL
     private let claudeHome: URL?
     private let piHome: URL?
     private let openCodeHome: URL?
-    init(home: URL, claudeHome: URL?, piHome: URL? = nil, openCodeHome: URL? = nil) { self.home = home; self.claudeHome = claudeHome; self.piHome = piHome; self.openCodeHome = openCodeHome }
-    func load(now: Date, calendar: Calendar) throws -> LoadedUsage {
-        let pricing = try PricingCatalog.load()
+    init(home: URL, claudeHome: URL?, piHome: URL? = nil, openCodeHome: URL? = nil, pricingStore: PricingStore) {
+        self.home = home; self.claudeHome = claudeHome; self.piHome = piHome; self.openCodeHome = openCodeHome
+        self.pricingStore = pricingStore
+    }
+    func load(now: Date, calendar: Calendar) async throws -> LoadedUsage {
+        let pricing = try await pricingStore.catalog()
+        // First show cached/bundled totals. The regular usage refresh picks up new rates.
+        Task { await pricingStore.refreshIfNeeded(now: now) }
         let scan = try scanner.scan(codexHome: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome)
         return LoadedUsage(summary: SummaryBuilder.build(events: scan.events, now: now, calendar: calendar, pricing: pricing),
                            diagnostics: scan.diagnostics, fileCount: scan.fileCount, verifiedAt: pricing.verifiedAt)
@@ -33,7 +39,9 @@ actor UsageLoader {
     @Published private(set) var pricingDate: String?
     private let loader: UsageLoader
 
-    init(home: URL, claudeHome: URL? = nil, piHome: URL? = nil, openCodeHome: URL? = nil) { loader = UsageLoader(home: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome) }
+    init(home: URL, claudeHome: URL? = nil, piHome: URL? = nil, openCodeHome: URL? = nil, pricingStore: PricingStore = PricingStore()) {
+        loader = UsageLoader(home: home, claudeHome: claudeHome, piHome: piHome, openCodeHome: openCodeHome, pricingStore: pricingStore)
+    }
     convenience init() { self.init(home: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(), piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome()) }
 
     nonisolated static func resolveHome(environment: [String: String] = ProcessInfo.processInfo.environment,
