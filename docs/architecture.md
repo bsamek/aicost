@@ -18,13 +18,16 @@ Local logs / OpenCode database snapshot
 
 | Concern | Files |
 | --- | --- |
-| Codex counters, active/archive merging, forks | `Sources/CostCore/SessionParser.swift`, `SessionScanner.swift` |
+| Codex counters, active/archive merging, forks | `Sources/CostCore/CodexSessionParser.swift`, `CodexSessionScanner.swift` |
 | Claude, Pi, or OpenCode formats and identities | Corresponding `*SessionParser.swift` and `*SessionScanner.swift` files |
-| Combined scanning and diagnostics | `Sources/CostCore/UsageScanner.swift` |
-| Shared usage types | `Sources/CostCore/Usage.swift` |
-| Rates and provider-specific pricing | `Sources/CostCore/Pricing.swift`, `OpenCodePricing.swift`, `ModelsDevCatalog.swift`, `PricingStore.swift`, `Resources/*.json` |
+| JSONL log discovery, parse caching, identity deduplication | `Sources/CostCore/LogScanning.swift` |
+| Combined scanning, diagnostics, and source overrides | `Sources/CostCore/UsageScanner.swift`, `UsageSources.swift` |
+| Shared usage types, including per-agent `ProviderUsage` | `Sources/CostCore/Usage.swift` |
+| Rate tables and catalog loading | `Sources/CostCore/Rates.swift`, `Pricing.swift`, `ModelsDevCatalog.swift`, `PricingStore.swift`, `Resources/*.json` |
+| Per-agent cost rules | `Sources/CostCore/ProviderPricing.swift` |
+| Provider aliases and readable model names | `Sources/CostCore/ModelNaming.swift` |
 | Day/month totals and ordering | `Sources/CostCore/Summary.swift`, `ModelOrder.swift` |
-| Source overrides, background loading, refresh state | `Sources/CodexCost/AppModel.swift` |
+| Background loading and refresh state | `Sources/CodexCost/AppModel.swift`, `UsageLoader.swift` |
 | Menu bar lifecycle and automatic refresh | `Sources/CodexCost/App.swift` |
 | Sparkle update lifecycle and configuration | `Sources/CodexCost/AppUpdater.swift`, `UpdateConfiguration.swift` |
 | Panel and restart helper | `Sources/CodexCost/CostPanel.swift`, `AppRelauncher.swift` |
@@ -34,7 +37,7 @@ Local logs / OpenCode database snapshot
 
 ## Accounting boundaries
 
-Each provider retains its own token semantics and deduplication rules. `UsageScanner` combines their results. `PricingCatalog` returns Decimal USD or an explicit unpriced reason. `SummaryBuilder` computes periods with a supplied calendar and cutoff, excluding future events. Provider/model rows remain distinct where pricing depends on the provider. The panel shows priced rows; the report includes unpriced counts and reasons. Read [accounting coverage](accounting.md) for supported formats and precise limits.
+Each provider retains its own token semantics and deduplication rules: `UsageEvent.usage` is a `ProviderUsage` case per agent, and `PricingCatalog.cost` switches on it to that agent's rule in `ProviderPricing`. `UsageScanner` combines their results. `PricingCatalog` returns Decimal USD or an explicit unpriced reason. `SummaryBuilder` computes periods with a supplied calendar and cutoff, excluding future events. Provider/model rows remain distinct where pricing depends on the provider. The panel shows priced rows with labels from `ModelNaming`, which names the serving provider for prefixed rows (for example `Anthropic ·`); the report includes raw row IDs, unpriced counts, and reasons. Read [accounting coverage](accounting.md) for supported formats and precise limits.
 
 `UsageLoader` is an actor that owns the scanners and runs accounting away from the main actor. `AppModel` publishes successful results on the main actor, coalesces overlapping refreshes, and retains previous totals on failure. Refresh happens at launch and every 30 seconds. The report uses the same scan/pricing/summary components and supports a reproducible `--at` cutoff.
 
