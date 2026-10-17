@@ -110,7 +110,7 @@ struct SummaryTests {
         #expect(summary.month.models.isEmpty)
     }
 }
-func buildSummary(_ events: [UsageEvent], now: String) throws -> CostSummary {
+private func buildSummary(_ events: [UsageEvent], now: String) throws -> CostSummary {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "America/New_York")!
     return SummaryBuilder.build(

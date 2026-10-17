@@ -1,4 +1,5 @@
 import Foundation
+import TestSupport
 import Testing
 
 @testable import CostCore
@@ -120,81 +121,85 @@ struct ModelsDevTests {
     }
 
     @Test func concurrentRefreshesShareOneDownload() async throws {
-        let root = try apiTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let transport = DeferredTransport()
-        let store = PricingStore(cacheDirectory: root, fetch: { await transport.fetch($0) })
-        let first = Task { await store.refreshIfNeeded(now: apiDate) }
-        await transport.waitUntilStarted()
-        #expect(await store.refreshIfNeeded(now: apiDate) == false)
-        // The current catalog remains available while a download is suspended.
-        #expect(try await store.catalog().fetchedAt == nil)
-        await transport.finish()
-        #expect(await first.value)
+        try await withTemporaryDirectory { root async throws in
+            let transport = DeferredTransport()
+            let store = PricingStore(cacheDirectory: root, fetch: { await transport.fetch($0) })
+            let first = Task { await store.refreshIfNeeded(now: apiDate) }
+            await transport.waitUntilStarted()
+            #expect(await store.refreshIfNeeded(now: apiDate) == false)
+            // The current catalog remains available while a download is suspended.
+            #expect(try await store.catalog().fetchedAt == nil)
+            await transport.finish()
+            #expect(await first.value)
+        }
     }
 
     @Test func refreshPersistsCacheAndThrottlesAcrossStoreInstances() async throws {
-        let root = try apiTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let transport = CatalogTransport(data: apiFixture())
-        let store = PricingStore(cacheDirectory: root, fetch: { try await transport.fetch($0) })
-        #expect(await store.refreshIfNeeded(now: apiDate))
-        #expect(await transport.calls == 1)
-        let restored = PricingStore(cacheDirectory: root, fetch: { try await transport.fetch($0) })
-        #expect(await restored.refreshIfNeeded(now: apiDate.addingTimeInterval(86_399)) == false)
-        #expect(await transport.calls == 1)
-        #expect(
-            try await restored.catalog().cost(
-                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
-            ).usd == Decimal(string: "0.003"))
-        #expect(await restored.refreshIfNeeded(now: apiDate.addingTimeInterval(86_400)))
-        #expect(await transport.calls == 2)
+        try await withTemporaryDirectory { root async throws in
+            let transport = CatalogTransport(data: apiFixture())
+            let store = PricingStore(cacheDirectory: root, fetch: { try await transport.fetch($0) })
+            #expect(await store.refreshIfNeeded(now: apiDate))
+            #expect(await transport.calls == 1)
+            let restored = PricingStore(
+                cacheDirectory: root, fetch: { try await transport.fetch($0) })
+            #expect(
+                await restored.refreshIfNeeded(now: apiDate.addingTimeInterval(86_399)) == false)
+            #expect(await transport.calls == 1)
+            #expect(
+                try await restored.catalog().cost(
+                    for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+                ).usd == Decimal(string: "0.003"))
+            #expect(await restored.refreshIfNeeded(now: apiDate.addingTimeInterval(86_400)))
+            #expect(await transport.calls == 2)
+        }
     }
 
     @Test func failedOrInvalidRefreshKeepsLastGoodCacheAndDoesNotRetryEveryTick() async throws {
-        let root = try apiTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let good = PricingStore(cacheDirectory: root, fetch: { _ in (apiFixture(), 200) })
-        #expect(await good.refreshIfNeeded(now: apiDate))
-        for (index, response) in [(Data("{}".utf8), 200), (apiFixture(), 503)].enumerated() {
-            let transport = CatalogTransport(data: response.0, status: response.1)
-            let store = PricingStore(cacheDirectory: root, fetch: { try await transport.fetch($0) })
-            let now = apiDate.addingTimeInterval(Double(index + 1) * 86_400)
-            #expect(await store.refreshIfNeeded(now: now) == false)
-            #expect(await store.refreshIfNeeded(now: now.addingTimeInterval(30)) == false)
-            #expect(await transport.calls == 1)
-            let restarted = PricingStore(
-                cacheDirectory: root, fetch: { try await transport.fetch($0) })
-            #expect(await restarted.refreshIfNeeded(now: now.addingTimeInterval(60)) == false)
-            #expect(await transport.calls == 1)
+        try await withTemporaryDirectory { root async throws in
+            let good = PricingStore(cacheDirectory: root, fetch: { _ in (apiFixture(), 200) })
+            #expect(await good.refreshIfNeeded(now: apiDate))
+            for (index, response) in [(Data("{}".utf8), 200), (apiFixture(), 503)].enumerated() {
+                let transport = CatalogTransport(data: response.0, status: response.1)
+                let store = PricingStore(
+                    cacheDirectory: root, fetch: { try await transport.fetch($0) })
+                let now = apiDate.addingTimeInterval(Double(index + 1) * 86_400)
+                #expect(await store.refreshIfNeeded(now: now) == false)
+                #expect(await store.refreshIfNeeded(now: now.addingTimeInterval(30)) == false)
+                #expect(await transport.calls == 1)
+                let restarted = PricingStore(
+                    cacheDirectory: root, fetch: { try await transport.fetch($0) })
+                #expect(await restarted.refreshIfNeeded(now: now.addingTimeInterval(60)) == false)
+                #expect(await transport.calls == 1)
+                #expect(
+                    try await store.catalog().cost(
+                        for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+                    ).usd == Decimal(string: "0.003"))
+            }
+            let offline = PricingStore(
+                cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
             #expect(
-                try await store.catalog().cost(
+                await offline.refreshIfNeeded(now: apiDate.addingTimeInterval(4 * 86_400)) == false)
+            #expect(
+                try await offline.catalog().cost(
                     for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
                 ).usd == Decimal(string: "0.003"))
         }
-        let offline = PricingStore(
-            cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
-        #expect(await offline.refreshIfNeeded(now: apiDate.addingTimeInterval(4 * 86_400)) == false)
-        #expect(
-            try await offline.catalog().cost(
-                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
-            ).usd == Decimal(string: "0.003"))
     }
 
     @Test func emptyOrCorruptCacheUsesBundledPrices() async throws {
-        let root = try apiTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = PricingStore(
-            cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
-        #expect(
-            try await store.catalog().cost(
-                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
-            ).usd == Decimal(string: "0.002"))
-        try Data("broken".utf8).write(to: root.appendingPathComponent("models-dev.json"))
-        #expect(
-            try PricingStore.cachedCatalog(cacheDirectory: root).cost(
-                for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
-            ).usd == Decimal(string: "0.002"))
+        try await withTemporaryDirectory { root async throws in
+            let store = PricingStore(
+                cacheDirectory: root, fetch: { _ in throw URLError(.notConnectedToInternet) })
+            #expect(
+                try await store.catalog().cost(
+                    for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+                ).usd == Decimal(string: "0.002"))
+            try Data("broken".utf8).write(to: root.appendingPathComponent("models-dev.json"))
+            #expect(
+                try PricingStore.cachedCatalog(cacheDirectory: root).cost(
+                    for: testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000))
+                ).usd == Decimal(string: "0.002"))
+        }
     }
 }
 
@@ -211,11 +216,6 @@ private func apiFixture() -> Data {
          "example":{"models":{"new-model":{"cost":{"input":7,"output":21}},
                                 "free-model":{"cost":{"input":0,"output":0}}}}}
         """.utf8)
-}
-private func apiTemporaryDirectory() throws -> URL {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    return root
 }
 private actor CatalogTransport {
     var calls = 0

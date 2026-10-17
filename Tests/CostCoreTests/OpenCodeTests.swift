@@ -1,4 +1,5 @@
 import Foundation
+import TestSupport
 import Testing
 
 @testable import CostCore
@@ -13,10 +14,10 @@ struct OpenCodeTests {
         #expect(event.openCodeUsage?.output == 40)
         #expect(event.openCodeUsage?.reasoning == 10)
         // 100*3 + 20*.30 + 10*3.75 + (40+10)*15, per million.
-        #expect(try PricingCatalog.load().cost(for: event).usd == Decimal(string: "0.0010935"))
+        #expect(try fixturePricing().cost(for: event).usd == Decimal(string: "0.0010935"))
     }
     @Test func completedCompactionUsageIsCountedOnce() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             let data = openCodeFixture().replacingOccurrences(
                 of: "\"completed\":1791633600100", with: "\"unused\":0"
             ).replacingOccurrences(of: "\"agent\":\"build\"", with: "\"status\":\"completed\"")
@@ -28,12 +29,12 @@ struct OpenCodeTests {
             let scan = try OpenCodeSessionScanner().scan(home: home)
             #expect(scan.events.count == 1)
             #expect(
-                try scan.events.first.map { try PricingCatalog.load().cost(for: $0).usd }
+                try scan.events.first.map { try fixturePricing().cost(for: $0).usd }
                     == Decimal(string: "0.0010935"))
         }
     }
     @Test func exactProviderUsesItsOwnPricingAndUnknownProviderIsUnpriced() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         for (provider, expected) in [
             ("opencode", "0.00053414"), ("openai", "0.0006275"), ("custom", nil),
         ] {
@@ -49,7 +50,7 @@ struct OpenCodeTests {
         }
     }
     @Test func zeroPublishedRatesArePricedButUnavailableWriteRateIsNot() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         let free = try #require(
             OpenCodeSessionParser.parse(
                 data: Data(openCodeFixture(model: "big-pickle", writes: 0).utf8), id: "m",
@@ -64,7 +65,7 @@ struct OpenCodeTests {
         #expect(pricing.cost(for: missing).usd == nil)
     }
     @Test func verifiedFireworksModelUsesStandardRatesAndRejectsUnknownWrites() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         for (writes, expected) in [(Int64(0), "0.00009012"), (Int64(10), nil)] {
             let data = openCodeFixture(
                 provider: "fireworks-ai", model: "accounts/fireworks/models/deepseek-v4p1-flash",
@@ -77,7 +78,7 @@ struct OpenCodeTests {
         }
     }
     @Test func contextThresholdIncludesAllInputCategories() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         for (input, expected) in [(Int64(271970), "0.0544569"), (Int64(271971), "0.1088842")] {
             let event = try #require(
                 OpenCodeSessionParser.parse(
@@ -99,7 +100,7 @@ struct OpenCodeTests {
                     data: Data(data.utf8), id: "m", sessionID: "s", modern: false
                 ).events.first)
             #expect(event.openCodeUsage?.billableOutput == output)
-            #expect((try PricingCatalog.load().cost(for: event).usd != nil) == priced)
+            #expect((try fixturePricing().cost(for: event).usd != nil) == priced)
         }
     }
     @Test func malformedCountsMissingIdentityAndUnfinishedUsageAreDiagnosed() {
@@ -123,7 +124,7 @@ struct OpenCodeTests {
                 .events.isEmpty)
     }
     @Test func migratedIDsPreferModernAndSnapshotsAreReadOnly() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             try openCodeDatabase(
                 home,
                 sql: """
@@ -141,7 +142,7 @@ struct OpenCodeTests {
         }
     }
     @Test func inheritedHistoricalCopyDeduplicatesButDistinctCallsCount() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             try openCodeDatabase(
                 home,
                 sql: """
@@ -157,7 +158,7 @@ struct OpenCodeTests {
         }
     }
     @Test func duplicateIDWithConflictingUsageIsUnpriced() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             try openCodeDatabase(
                 home,
                 sql: """
@@ -167,11 +168,11 @@ struct OpenCodeTests {
             let scan = try OpenCodeSessionScanner().scan(home: home)
             #expect(scan.events.count == 1)
             #expect(scan.diagnostics > 0)
-            #expect(try PricingCatalog.load().cost(for: scan.events[0]).usd == nil)
+            #expect(try fixturePricing().cost(for: scan.events[0]).usd == nil)
         }
     }
     @Test func localDayMonthAndFutureBoundaries() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             try openCodeDatabase(
                 home,
                 sql: """
@@ -185,13 +186,13 @@ struct OpenCodeTests {
             let scan = try OpenCodeSessionScanner().scan(home: home)
             let summary = SummaryBuilder.build(
                 events: scan.events, now: Date(timeIntervalSince1970: 1_791_691_201),
-                calendar: calendar, pricing: try PricingCatalog.load())
+                calendar: calendar, pricing: try fixturePricing())
             #expect(summary.today.total == Decimal(string: "0.0010935"))
             #expect(summary.month.total == Decimal(string: "0.002187"))
         }
     }
     @Test func unstableSnapshotRetriesThenRejectsAndCleansUp() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             try openCodeDatabase(
                 home,
                 sql:
@@ -218,14 +219,14 @@ struct OpenCodeTests {
         }
     }
     @Test func missingDatabaseIsEmptyAndInvalidDatabaseThrows() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             #expect(try OpenCodeSessionScanner().scan(home: home).events.isEmpty)
             try Data("not sqlite".utf8).write(to: home.appendingPathComponent("opencode.db"))
             #expect(throws: (any Error).self) { try OpenCodeSessionScanner().scan(home: home) }
         }
     }
     @Test func walRecordsReadWithoutChangingSourceSidecars() throws {
-        try withOpenCodeHome { home in
+        try withTemporaryDirectory { home in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
             process.arguments = [home.appendingPathComponent("opencode.db").path]
@@ -260,7 +261,7 @@ struct OpenCodeTests {
     }
 }
 
-func openCodeFixture(
+private func openCodeFixture(
     provider: String = "opencode", model: String = "claude-sonnet-4-6", input: Int64 = 100,
     writes: Int64 = 10, modern: Bool = true, created: Int64 = 1_791_633_600_000
 ) -> String {
@@ -272,15 +273,9 @@ func openCodeFixture(
         {\(modelFields),"agent":"build","content":[],"cost":999,"tokens":{"input":\(input),"output":40,"reasoning":10,"cache":{"read":20,"write":\(writes)}},"time":{"created":\(created),"completed":\(created + 100)},"finish":"stop"}
         """
 }
-let openCodeSchema =
+private let openCodeSchema =
     "CREATE TABLE session(id TEXT, time_created INTEGER); CREATE TABLE message(id TEXT,session_id TEXT,time_created INTEGER,data TEXT); CREATE TABLE session_message(id TEXT,session_id TEXT,type TEXT,time_created INTEGER,data TEXT);\n"
-func withOpenCodeHome(_ body: (URL) throws -> Void) throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: home) }
-    try body(home)
-}
-func openCodeDatabase(_ home: URL, sql: String) throws {
+private func openCodeDatabase(_ home: URL, sql: String) throws {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
     process.arguments = [home.appendingPathComponent("opencode.db").path, openCodeSchema + sql]
@@ -290,7 +285,7 @@ func openCodeDatabase(_ home: URL, sql: String) throws {
 }
 
 // Simulate a source changing between copy and validation, with real file operations.
-final class SnapshotChangingFileManager: FileManager, @unchecked Sendable {
+private final class SnapshotChangingFileManager: FileManager, @unchecked Sendable {
     private var changes: Int
     var copies = 0
     var targets: [URL] = []

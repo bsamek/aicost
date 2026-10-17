@@ -7,8 +7,9 @@ import Testing
 struct CodexParserTests {
     @Test func inheritedMetadataDoesNotReplaceOwningThread() {
         let result = parseCodex(
-            fixture([
-                meta("child", fork: "parent"), meta("parent"), context("gpt-6.1-sol"), usage(100),
+            codexLog([
+                codexMeta("child", fork: "parent"), codexMeta("parent"),
+                codexContext("gpt-6.1-sol"), codexTokenCount(100),
             ]))
         #expect(result.session.id == "child")
         #expect(result.session.parent == "parent")
@@ -17,17 +18,19 @@ struct CodexParserTests {
 
     @Test func replayedOlderSnapshotDoesNotResetBaseline() {
         let result = parseCodex(
-            fixture([
-                meta("s"), usage(100), usage(150, second: 2, lastInput: 50),
-                usage(100), usage(200, second: 3, lastInput: 50),
+            codexLog([
+                codexMeta("s"), codexTokenCount(100),
+                codexTokenCount(150, second: 2, lastInput: 50),
+                codexTokenCount(100), codexTokenCount(200, second: 3, lastInput: 50),
             ]))
         #expect(result.events.map(\.codexUsage?.input) == [100, 50, 50])
     }
     @Test func repeatedSnapshotsAndModelChanges() {
-        let data = fixture([
-            meta("s"), context("gpt-6.1-sol"), usage(100, cached: 20, output: 10),
-            usage(100, cached: 20, output: 10), context("gpt-6-astra"),
-            usage(
+        let data = codexLog([
+            codexMeta("s"), codexContext("gpt-6.1-sol"),
+            codexTokenCount(100, cached: 20, output: 10),
+            codexTokenCount(100, cached: 20, output: 10), codexContext("gpt-6-astra"),
+            codexTokenCount(
                 150, cached: 30, output: 15, second: 2, lastInput: 50, lastCached: 10, lastOutput: 5
             ),
         ])
@@ -39,14 +42,15 @@ struct CodexParserTests {
     }
 
     @Test func counterReset() {
-        let result = parseCodex(fixture([meta("s"), usage(100), usage(20, second: 2)]))
+        let result = parseCodex(
+            codexLog([codexMeta("s"), codexTokenCount(100), codexTokenCount(20, second: 2)]))
         #expect(result.events.map(\.codexUsage?.input) == [100, 20])
         #expect(result.events.first?.model == nil)
     }
 
     @Test func malformedAndNegativeRecordsDoNotEraseValidUsage() {
         let data =
-            fixture([meta("s"), usage(100), usage(-1, second: 2)])
+            codexLog([codexMeta("s"), codexTokenCount(100), codexTokenCount(-1, second: 2)])
             + Data("bad json\n{\"unfinished\":".utf8)
         let result = parseCodex(data)
         #expect(result.events.count == 1)
@@ -55,15 +59,17 @@ struct CodexParserTests {
     }
 
     @Test func missingTimestampAndInvalidCachedCountAreRejected() {
-        var noTimestamp = usage(100)
+        var noTimestamp = codexTokenCount(100)
         noTimestamp.removeValue(forKey: "timestamp")
-        let result = parseCodex(fixture([meta("s"), noTimestamp, usage(100, cached: 101)]))
+        let result = parseCodex(
+            codexLog([codexMeta("s"), noTimestamp, codexTokenCount(100, cached: 101)]))
         #expect(result.events.isEmpty)
         #expect(result.diagnostics == 2)
     }
 
     @Test func accumulatedDeltaHasNoInventedRequestContext() {
-        let result = parseCodex(fixture([meta("s"), usage(300_000, lastInput: 150_000)]))
+        let result = parseCodex(
+            codexLog([codexMeta("s"), codexTokenCount(300_000, lastInput: 150_000)]))
         #expect(result.events.first?.codexUsage?.input == 300_000)
         #expect(result.events.first?.requestInput == nil)
     }
@@ -77,44 +83,4 @@ private func parseCodex(_ data: Data) -> (
     var diagnostics = session.diagnostics
     let events = CodexSessionParser.normalize(session, diagnostics: &diagnostics)
     return (session, events, diagnostics)
-}
-func fixture(_ records: [[String: Any]]) -> Data {
-    records.reduce(into: Data()) { data, record in
-        data.append(try! JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]))
-        data.append(10)
-    }
-}
-func meta(
-    _ id: String, fork: String? = nil, timestamp: String = "2026-10-10T12:00:00Z",
-    paginated: Bool = false
-) -> [String: Any] {
-    var payload: [String: Any] = ["id": id, "timestamp": timestamp]
-    if let fork { payload["forked_from_id"] = fork }
-    if paginated {
-        payload["history_mode"] = "paginated"
-        payload["history_base"] = ["thread_id": fork ?? "", "end_ordinal_exclusive": 100]
-    }
-    return ["type": "session_meta", "payload": payload, "timestamp": timestamp]
-}
-func context(_ model: String) -> [String: Any] {
-    ["type": "turn_context", "payload": ["model": model]]
-}
-func usage(
-    _ input: Int64, cached: Int64 = 0, output: Int64 = 0, second: Int = 1, lastInput: Int64? = nil,
-    lastCached: Int64? = nil, lastOutput: Int64? = nil
-) -> [String: Any] {
-    let total: [String: Any] = [
-        "input_tokens": input, "cached_input_tokens": cached, "output_tokens": output,
-        "reasoning_output_tokens": 0, "cache_write_input_tokens": 0,
-    ]
-    var last = total
-    last["input_tokens"] = lastInput ?? input
-    last["cached_input_tokens"] = lastCached ?? cached
-    last["output_tokens"] = lastOutput ?? output
-    return [
-        "type": "event_msg", "timestamp": String(format: "2026-10-10T12:00:%02dZ", second),
-        "payload": [
-            "type": "token_count", "info": ["total_token_usage": total, "last_token_usage": last],
-        ],
-    ]
 }
