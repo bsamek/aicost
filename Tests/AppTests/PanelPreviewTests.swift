@@ -95,7 +95,10 @@ import Testing
             ("claude-haiku-5-5", "0.09"), ("claude-opus-5-5", "0.22"),
             ("claude-sonnet-5-5", "0.24"),
             ("fireworks/accounts/fireworks/models/deepseek-v4p1-flash", "0.22"),
-            ("gpt-6-astra", "31.39"), ("gpt-6.1-sol", "23.93"), ("gpt-5.6-sol", "0.15"),
+            ("fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash", "0.20"),
+            ("fireworks-ai/accounts/fireworks/routers/glm-5p3-fast", "0.58"),
+            ("gpt-6-astra", "31.39"), ("gpt-6.1-sol", "23.93"),
+            ("openai-codex/gpt-6.1-sol", "0.01"), ("gpt-5.6-sol", "0.15"),
         ]
         return CostSummary(
             today: PeriodCost(
@@ -104,7 +107,7 @@ import Testing
                     ModelCost(model: "gpt-6.1-sol", total: Decimal(string: "2.46")!, pricedCount: 1)
                 ]),
             month: PeriodCost(
-                total: Decimal(string: "56.24")!,
+                total: Decimal(string: "57.03")!,
                 models: rows.map {
                     ModelCost(model: $0.0, total: Decimal(string: $0.1)!, pricedCount: 1)
                 }))

@@ -21,45 +21,55 @@ public enum ModelNaming {
         return known.contains(provider) ? provider : nil
     }
 
-    /// Verified identical Fireworks models that Pi (`fireworks`) and OpenCode (`fireworks-ai`)
-    /// record under different provider names. Display combines them; accounting does not.
-    static func displayRow(_ row: String) -> String {
-        switch row {
-        case "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash",
-            "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
-            "fireworks/" + row.dropFirst("fireworks-ai/".count)
-        default: row
-        }
-    }
-
-    /// A readable label for a summary row, falling back to the raw ID.
+    /// A readable model name for a summary row, without the agent or serving provider.
+    /// Rows that name the same model share a label, so the panel shows one line per model.
     public static func displayName(_ row: String) -> String {
-        // Bare IDs come from Codex and Claude Code; prefixes distinguish routed providers.
-        for (prefix, label) in [
-            ("openai-codex/", "Pi"), ("openai/", "OpenAI"), ("anthropic/", "Anthropic"),
-        ] where row.hasPrefix(prefix) {
-            return label + " · " + displayName(String(row.dropFirst(prefix.count)))
-        }
-        switch row {
-        case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash":
-            return "DeepSeek V4.1 Flash · Fireworks"
-        case "fireworks/accounts/fireworks/models/glm-5p3-flash":
-            return "GLM 5.3 Flash · Fireworks"
-        default: break
-        }
+        // Prefixed rows end in the model slug, e.g. `fireworks-ai/accounts/fireworks/routers/glm-5p3-fast`.
+        let name = row.split(separator: "/").last.map(String.init) ?? row
         if let match = ModelOrder.capture(
-            "^claude-(fable|haiku|opus|sonnet)-([0-9]+)(?:-([0-9]{1,2}))?$", in: row)
+            "^claude-(fable|haiku|opus|sonnet)-([0-9]+)(?:-([0-9]{1,2}))?$", in: name)
         {
             let version = match[3].isEmpty ? match[2] : match[2] + "." + match[3]
             return "Claude \(match[1].capitalized) \(version)"
         }
         if let match = ModelOrder.capture(
             "^gpt-([0-9]+(?:\\.[0-9]+)?)((?:-(?:astra|luna|sol|terra|mini|nano|pro|codex))*)$",
-            in: row)
+            in: name)
         {
             let suffixes = match[2].split(separator: "-").map { $0.capitalized }
             return (["GPT-" + match[1]] + suffixes).joined(separator: " ")
         }
-        return row
+        // Fireworks writes versions as `v4p1`. A numeric release suffix names a distinct model.
+        if let match = ModelOrder.capture(
+            "^(deepseek|glm)-v?([0-9]+(?:[p.][0-9]+)?)((?:-(?:flash|fast|air|pro))*)(?:-([0-9]{4,8}))?$",
+            in: name)
+        {
+            let family = match[1] == "glm" ? "GLM" : "DeepSeek"
+            let version =
+                (match[1] == "deepseek" ? "V" : "")
+                + match[2].replacingOccurrences(of: "p", with: ".")
+            let suffixes = match[3].split(separator: "-").map { $0.capitalized }
+            let release = match[4].isEmpty ? [] : [match[4]]
+            return ([family, version] + suffixes + release).joined(separator: " ")
+        }
+        return name
+    }
+
+    /// Where a row's usage came from: the serving provider for prefixed rows, or the agent
+    /// for bare IDs, which only Codex and Claude Code record.
+    public static func source(_ row: String) -> String {
+        let parts = row.split(separator: "/", maxSplits: 1)
+        guard parts.count == 2 else { return row.hasPrefix("claude-") ? "Claude Code" : "Codex" }
+        switch parts[0] {
+        case "anthropic": return "Anthropic"
+        case "openai": return "OpenAI"
+        // Only Pi records the `openai-codex` provider, for ChatGPT sign-in.
+        case "openai-codex": return "Pi · ChatGPT"
+        case "fireworks", "fireworks-ai": return "Fireworks"
+        case "openrouter": return "OpenRouter"
+        case "opencode": return "OpenCode Zen"
+        case "opencode-go": return "OpenCode Go"
+        default: return String(parts[0])
+        }
     }
 }

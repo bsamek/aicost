@@ -6,6 +6,8 @@ public struct ModelCost: Identifiable, Sendable {
     public var pricedCount: Int = 0
     public var unpricedCount: Int = 0
     public var reasons: Set<String> = []
+    /// Raw source rows combined into a displayed row; empty for raw rows.
+    public var sources: [ModelCost] = []
     public var id: String { model }
 }
 public struct PeriodCost: Sendable {
@@ -13,22 +15,25 @@ public struct PeriodCost: Sendable {
     public var models: [ModelCost] = []
     public var unpricedCount: Int = 0
 
-    /// Combine verified serving-provider aliases only for display. The raw
-    /// source rows remain available to the diagnostic report and accounting.
+    /// One row per readable model name, combining agents and serving providers only for
+    /// display. The raw source rows remain available to the diagnostic report and accounting.
     public var displayedModels: [ModelCost] {
         var rows: [ModelCost] = []
         var indices: [String: Int] = [:]
-        for var row in models {
-            row.model = ModelNaming.displayRow(row.model)
-            if let index = indices[row.model] {
-                rows[index].total += row.total
-                rows[index].pricedCount += row.pricedCount
-                rows[index].unpricedCount += row.unpricedCount
-                rows[index].reasons.formUnion(row.reasons)
-            } else {
-                indices[row.model] = rows.count
-                rows.append(row)
-            }
+        for source in models {
+            let name = ModelNaming.displayName(source.model)
+            let index =
+                indices[name]
+                ?? {
+                    indices[name] = rows.count
+                    rows.append(ModelCost(model: name))
+                    return rows.count - 1
+                }()
+            rows[index].total += source.total
+            rows[index].pricedCount += source.pricedCount
+            rows[index].unpricedCount += source.unpricedCount
+            rows[index].reasons.formUnion(source.reasons)
+            rows[index].sources.append(source)
         }
         return rows
     }
