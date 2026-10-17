@@ -25,7 +25,7 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Show toolchain
         run: swift --version
       - name: Check formatting and run all Swift Testing tests
@@ -44,12 +44,12 @@ jobs:
       RELEASE_VERSION: ${{ inputs.release_version || '0.0.0' }}
       RELEASE_BUILD: ${{ inputs.release_build || '0' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build, package and verify Apple Silicon app
         run: scripts/package-release.sh "$RELEASE_VERSION" "$RELEASE_BUILD"
       - name: Include pinned Sparkle signing tool for release publication
         run: cp .build/app-arm64/artifacts/sparkle/Sparkle/bin/sign_update build/release/sign_update
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-release
           path: build/release/
