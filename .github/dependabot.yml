@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Keep workflow actions current, such as runtime moves like Node 20 to Node 24.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
