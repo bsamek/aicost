@@ -3,8 +3,8 @@ import Testing
 
 @testable import CostCore
 
-struct ScannerTests {
-    @Test func testDifferentActiveArchiveSnapshotsMergeBeforeComputingDeltas() throws {
+struct CodexScannerTests {
+    @Test func differentActiveArchiveSnapshotsMergeBeforeComputingDeltas() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         try write(
@@ -15,11 +15,11 @@ struct ScannerTests {
                 meta("s"), usage(100), usage(150, second: 2, lastInput: 50),
                 usage(200, second: 3, lastInput: 50),
             ]), home, "sessions/a.jsonl")
-        let result = try SessionScanner().scan(home: home)
+        let result = try CodexSessionScanner().scan(home: home)
         #expect(result.events.map(\.usage.input).reduce(0, +) == 200)
     }
 
-    @Test func testInheritedForkFillsParentSnapshotGapWithoutDoubleCounting() throws {
+    @Test func inheritedForkFillsParentSnapshotGapWithoutDoubleCounting() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         try write(
@@ -32,9 +32,11 @@ struct ScannerTests {
                 usage(200, second: 3, lastInput: 50),
                 usage(250, second: 5, lastInput: 50),
             ]), home, "sessions/b.jsonl")
-        #expect(try SessionScanner().scan(home: home).events.map(\.usage.input).reduce(0, +) == 250)
+        #expect(
+            try CodexSessionScanner().scan(home: home).events.map(\.usage.input).reduce(0, +) == 250
+        )
     }
-    @Test func testActiveArchiveCopiesAndInheritedForkAreCountedOnce() throws {
+    @Test func activeArchiveCopiesAndInheritedForkAreCountedOnce() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         let parent = fixture([meta("parent"), context("gpt-6.1-sol"), usage(100)])
@@ -45,12 +47,12 @@ struct ScannerTests {
             context("gpt-6.1-sol"), usage(100), usage(150, second: 3, lastInput: 50),
         ])
         try write(fork, home, "sessions/child.jsonl")
-        let result = try SessionScanner().scan(home: home)
+        let result = try CodexSessionScanner().scan(home: home)
         #expect(result.events.map(\.usage.input).reduce(0, +) == 150)
         #expect(result.events.count == 2)
     }
 
-    @Test func testPaginatedForkAndIndependentSubagentRemainSeparate() throws {
+    @Test func paginatedForkAndIndependentSubagentRemainSeparate() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         try write(fixture([meta("parent"), usage(100)]), home, "sessions/a.jsonl")
@@ -63,15 +65,15 @@ struct ScannerTests {
         payload["session_id"] = "parent"
         m["payload"] = payload
         try write(fixture([m, usage(20, second: 4)]), home, "sessions/c.jsonl")
-        let result = try SessionScanner().scan(home: home)
+        let result = try CodexSessionScanner().scan(home: home)
         #expect(result.events.map(\.usage.input).reduce(0, +) == 160)
         #expect(Set(result.events.map(\.sessionID)).count == 3)
     }
 
-    @Test func testCacheTracksAppendTruncationAndDeletion() throws {
+    @Test func cacheTracksAppendTruncationAndDeletion() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
-        let scanner = SessionScanner()
+        let scanner = CodexSessionScanner()
         try write(fixture([meta("s"), usage(100)]), home, "sessions/a.jsonl")
         #expect(try scanner.scan(home: home).events.first?.usage.input == 100)
         try write(
@@ -84,26 +86,26 @@ struct ScannerTests {
         #expect(try scanner.scan(home: home).events.isEmpty)
     }
 
-    @Test func testEmptyHomeAndUnreadableLog() throws {
+    @Test func emptyHomeAndUnreadableLog() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
-        #expect(try SessionScanner().scan(home: home).events.isEmpty)
+        #expect(try CodexSessionScanner().scan(home: home).events.isEmpty)
         try write(fixture([meta("s"), usage(100)]), home, "sessions/a.jsonl")
         let path = home.appendingPathComponent("sessions/a.jsonl").path
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: path)
         defer {
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
         }
-        #expect(throws: (any Error).self) { try SessionScanner().scan(home: home) }
+        #expect(throws: (any Error).self) { try CodexSessionScanner().scan(home: home) }
     }
 
-    @Test func testUnresolvedForkBaselineIsFlagged() throws {
+    @Test func unresolvedForkBaselineIsFlagged() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         try write(
             fixture([meta("child", fork: "missing", paginated: true), usage(200, lastInput: 50)]),
             home, "sessions/a.jsonl")
-        let event = try #require(SessionScanner().scan(home: home).events.first)
+        let event = try #require(CodexSessionScanner().scan(home: home).events.first)
         #expect(event.issue != nil)
     }
 }

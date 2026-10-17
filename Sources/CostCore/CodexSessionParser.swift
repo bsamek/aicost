@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-public enum SessionParser {
+public enum CodexSessionParser {
     public static func parse(data: Data, fileID: String) -> ParsedSession {
         var result = ParsedSession(
             id: fileID, parent: nil, created: nil, events: [], diagnostics: 0)

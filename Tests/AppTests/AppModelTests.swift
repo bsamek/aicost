@@ -23,7 +23,8 @@ import Testing
         process.waitUntilExit()
         #expect(process.terminationStatus == 0)
         let model = AppModel(
-            home: root, openCodeHome: root, pricingStore: try isolatedPricingStore(root))
+            sources: UsageSources(codex: root, openCode: root),
+            pricingStore: try isolatedPricingStore(root))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.003"))
         #expect(model.summary?.month.total == Decimal(string: "0.003"))
@@ -34,10 +35,10 @@ import Testing
     @Test func openCodeHomeUsesXDGDataHome() {
         let home = URL(fileURLWithPath: "/Users/example")
         #expect(
-            AppModel.resolveOpenCodeHome(environment: [:], userHome: home).path
+            UsageSources.resolve(environment: [:], userHome: home).openCode!.path
                 == "/Users/example/.local/share/opencode")
         #expect(
-            AppModel.resolveOpenCodeHome(environment: ["XDG_DATA_HOME": "~/data"], userHome: home)
+            UsageSources.resolve(environment: ["XDG_DATA_HOME": "~/data"], userHome: home).openCode!
                 .path == "/Users/example/data/opencode")
     }
     @Test func combinesClaudeAndCodexUsage() async throws {
@@ -61,7 +62,8 @@ import Testing
         try Data(codexRecords.utf8).write(to: codex.appendingPathComponent("sessions/a.jsonl"))
         try Data(claudeRecord.utf8).write(to: claude.appendingPathComponent("projects/a.jsonl"))
         let model = AppModel(
-            home: codex, claudeHome: claude, pricingStore: try isolatedPricingStore(root))
+            sources: UsageSources(codex: codex, claude: claude),
+            pricingStore: try isolatedPricingStore(root))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.007"))
         #expect(model.summary?.month.total == Decimal(string: "0.007"))
@@ -84,7 +86,9 @@ import Testing
             {"type":"message","id":"entry","message":{"role":"assistant","provider":"openai-codex","model":"gpt-6.1-sol","timestamp":\(milliseconds),"usage":{"input":1000,"cacheRead":0,"cacheWrite":0,"output":0}}}
             """
         try Data(records.utf8).write(to: pi.appendingPathComponent("sessions/a.jsonl"))
-        let model = AppModel(home: codex, piHome: pi, pricingStore: try isolatedPricingStore(root))
+        let model = AppModel(
+            sources: UsageSources(codex: codex, pi: pi),
+            pricingStore: try isolatedPricingStore(root))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.002"))
         #expect(model.summary?.month.total == Decimal(string: "0.002"))
@@ -95,24 +99,25 @@ import Testing
     @Test func piHomeOverrideResolvesTildeAndEmptyDefaults() {
         let home = URL(fileURLWithPath: "/Users/example")
         #expect(
-            AppModel.resolvePiHome(environment: [:], userHome: home).path
+            UsageSources.resolve(environment: [:], userHome: home).pi!.path
                 == "/Users/example/.pi/agent")
         #expect(
-            AppModel.resolvePiHome(environment: ["PI_CODING_AGENT_DIR": ""], userHome: home).path
+            UsageSources.resolve(environment: ["PI_CODING_AGENT_DIR": ""], userHome: home).pi!.path
                 == "/Users/example/.pi/agent")
         #expect(
-            AppModel.resolvePiHome(environment: ["PI_CODING_AGENT_DIR": "~/custom"], userHome: home)
+            UsageSources.resolve(environment: ["PI_CODING_AGENT_DIR": "~/custom"], userHome: home)
+                .pi!
                 .path == "/Users/example/custom")
     }
     @Test func claudeHomeOverrideResolvesTilde() {
         let home = URL(fileURLWithPath: "/Users/example")
         #expect(
-            AppModel.resolveClaudeHome(environment: [:], userHome: home).path
+            UsageSources.resolve(environment: [:], userHome: home).claude!.path
                 == "/Users/example/.claude")
         #expect(
-            AppModel.resolveClaudeHome(
+            UsageSources.resolve(
                 environment: ["CLAUDE_CONFIG_DIR": "~/custom"], userHome: home
-            ).path == "/Users/example/custom")
+            ).claude!.path == "/Users/example/custom")
     }
 
     @Test func inaccessibleHomePreservesSuccessfulTotals() async throws {
@@ -128,7 +133,8 @@ import Testing
 
             """
         try Data(data.utf8).write(to: home.appendingPathComponent("sessions/a.jsonl"))
-        let model = AppModel(home: home, pricingStore: try isolatedPricingStore(home))
+        let model = AppModel(
+            sources: UsageSources(codex: home), pricingStore: try isolatedPricingStore(home))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.002"))
         let previous = model.lastRefreshed
@@ -156,7 +162,8 @@ import Testing
 
             """
         try Data(records.utf8).write(to: file)
-        let model = AppModel(home: home, pricingStore: try isolatedPricingStore(home))
+        let model = AppModel(
+            sources: UsageSources(codex: home), pricingStore: try isolatedPricingStore(home))
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.002"))
         let successfulRefresh = try #require(model.lastRefreshed)
@@ -176,7 +183,8 @@ import Testing
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
         try Data("not a directory".utf8).write(to: home.appendingPathComponent("sessions"))
-        let model = AppModel(home: home, pricingStore: try isolatedPricingStore(home))
+        let model = AppModel(
+            sources: UsageSources(codex: home), pricingStore: try isolatedPricingStore(home))
         await model.refresh()
         #expect(model.summary == nil)
         #expect(model.lastRefreshed == nil)
@@ -185,9 +193,11 @@ import Testing
     @Test func codexHomeOverrideResolvesTilde() {
         let home = URL(fileURLWithPath: "/Users/example")
         #expect(
-            AppModel.resolveHome(environment: [:], userHome: home).path == "/Users/example/.codex")
+            UsageSources.resolve(environment: [:], userHome: home).codex!.path
+                == "/Users/example/.codex")
         #expect(
-            AppModel.resolveHome(environment: ["CODEX_HOME": "~/custom"], userHome: home).path
+            UsageSources.resolve(environment: ["CODEX_HOME": "~/custom"], userHome: home).codex!
+                .path
                 == "/Users/example/custom")
     }
 
@@ -214,11 +224,11 @@ import Testing
             {"type":"event_msg","timestamp":"\(stamp)","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":1000,"output_tokens":0},"last_token_usage":{"input_tokens":1000,"output_tokens":0}}}}
             """
         try Data(records.utf8).write(to: root.appendingPathComponent("sessions/a.jsonl"))
-        let model = AppModel(home: root, pricingStore: store)
+        let model = AppModel(sources: UsageSources(codex: root), pricingStore: store)
         await model.refresh()
         #expect(model.summary?.today.total == Decimal(string: "0.003"))
         let pricing = try PricingStore.cachedCatalog(cacheDirectory: cache)
-        let scan = try UsageScanner().scan(codexHome: root, claudeHome: nil)
+        let scan = try UsageScanner().scan(UsageSources(codex: root))
         #expect(pricing.cost(for: scan.events[0]).usd == model.summary?.today.total)
         #expect(pricing.fetchedAt != nil)
     }

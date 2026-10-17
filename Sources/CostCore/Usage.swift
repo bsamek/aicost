@@ -99,4 +99,10 @@ public struct ScanResult: Sendable {
     public var events: [UsageEvent]
     public var diagnostics: Int
     public var fileCount: Int
+
+    mutating func append(_ other: ScanResult) {
+        events += other.events
+        diagnostics += other.diagnostics
+        fileCount += other.fileCount
+    }
 }

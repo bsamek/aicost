@@ -4,9 +4,9 @@ import Testing
 @testable import CostCore
 
 // Removing cumulative deduplication, reset handling, or validation breaks these fixtures.
-struct UsageTests {
-    @Test func testInheritedMetadataDoesNotReplaceOwningThread() {
-        let result = SessionParser.parse(
+struct CodexParserTests {
+    @Test func inheritedMetadataDoesNotReplaceOwningThread() {
+        let result = CodexSessionParser.parse(
             data: fixture([
                 meta("child", fork: "parent"), meta("parent"), context("gpt-6.1-sol"), usage(100),
             ]), fileID: "f")
@@ -15,15 +15,15 @@ struct UsageTests {
         #expect(result.events.first?.sessionID == "child")
     }
 
-    @Test func testReplayedOlderSnapshotDoesNotResetBaseline() {
-        let result = SessionParser.parse(
+    @Test func replayedOlderSnapshotDoesNotResetBaseline() {
+        let result = CodexSessionParser.parse(
             data: fixture([
                 meta("s"), usage(100), usage(150, second: 2, lastInput: 50),
                 usage(100), usage(200, second: 3, lastInput: 50),
             ]), fileID: "f")
         #expect(result.events.map(\.usage.input) == [100, 50, 50])
     }
-    @Test func testRepeatedSnapshotsAndModelChanges() {
+    @Test func repeatedSnapshotsAndModelChanges() {
         let data = fixture([
             meta("s"), context("gpt-6.1-sol"), usage(100, cached: 20, output: 10),
             usage(100, cached: 20, output: 10), context("gpt-6-astra"),
@@ -31,41 +31,41 @@ struct UsageTests {
                 150, cached: 30, output: 15, second: 2, lastInput: 50, lastCached: 10, lastOutput: 5
             ),
         ])
-        let result = SessionParser.parse(data: data, fileID: "file")
+        let result = CodexSessionParser.parse(data: data, fileID: "file")
         #expect(result.events.count == 2)
         #expect(result.events.map(\.usage.input) == [100, 50])
         #expect(result.events.map(\.model) == ["gpt-6.1-sol", "gpt-6-astra"])
         #expect(result.events.last?.requestInput == 50)
     }
 
-    @Test func testCounterReset() {
-        let result = SessionParser.parse(
+    @Test func counterReset() {
+        let result = CodexSessionParser.parse(
             data: fixture([meta("s"), usage(100), usage(20, second: 2)]), fileID: "f")
         #expect(result.events.map(\.usage.input) == [100, 20])
         #expect(result.events.first?.model == nil)
     }
 
-    @Test func testMalformedAndNegativeRecordsDoNotEraseValidUsage() {
+    @Test func malformedAndNegativeRecordsDoNotEraseValidUsage() {
         let data =
             fixture([meta("s"), usage(100), usage(-1, second: 2)])
             + Data("bad json\n{\"unfinished\":".utf8)
-        let result = SessionParser.parse(data: data, fileID: "f")
+        let result = CodexSessionParser.parse(data: data, fileID: "f")
         #expect(result.events.count == 1)
         #expect(result.events.first?.usage.input == 100)
         #expect(result.diagnostics == 2)
     }
 
-    @Test func testMissingTimestampAndInvalidCachedCountAreRejected() {
+    @Test func missingTimestampAndInvalidCachedCountAreRejected() {
         var noTimestamp = usage(100)
         noTimestamp.removeValue(forKey: "timestamp")
-        let result = SessionParser.parse(
+        let result = CodexSessionParser.parse(
             data: fixture([meta("s"), noTimestamp, usage(100, cached: 101)]), fileID: "f")
         #expect(result.events.isEmpty)
         #expect(result.diagnostics == 2)
     }
 
-    @Test func testAccumulatedDeltaHasNoInventedRequestContext() {
-        let result = SessionParser.parse(
+    @Test func accumulatedDeltaHasNoInventedRequestContext() {
+        let result = CodexSessionParser.parse(
             data: fixture([meta("s"), usage(300_000, lastInput: 150_000)]), fileID: "f")
         #expect(result.events.first?.usage.input == 300_000)
         #expect(result.events.first?.requestInput == nil)

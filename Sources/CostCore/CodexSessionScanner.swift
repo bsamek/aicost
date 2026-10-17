@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-public final class SessionScanner {
+public final class CodexSessionScanner {
     private struct Cached {
         let size: UInt64
         let modified: Date
@@ -25,7 +25,7 @@ public final class SessionScanner {
                     userInfo: [NSFilePathErrorKey: root.path])
             }
             guard metadata.st_mode & S_IFMT == S_IFDIR else {
-                throw ScanError.unreadable(root.path)
+                throw CodexScanError.unreadable(root.path)
             }
             var enumerationError: Error?
             guard
@@ -36,7 +36,7 @@ public final class SessionScanner {
                         enumerationError = error
                         return false
                     })
-            else { throw ScanError.unreadable(root.path) }
+            else { throw CodexScanError.unreadable(root.path) }
             for case let url as URL in enumerator {
                 let values = try url.resourceValues(forKeys: [
                     .isRegularFileKey, .isSymbolicLinkKey,
@@ -57,7 +57,7 @@ public final class SessionScanner {
         for url in files.sorted(by: { $0.path < $1.path }) {
             let attributes = try manager.attributesOfItem(atPath: url.path)
             guard manager.isReadableFile(atPath: url.path) else {
-                throw ScanError.unreadable(url.path)
+                throw CodexScanError.unreadable(url.path)
             }
             let size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
             let modified = attributes[.modificationDate] as? Date ?? .distantPast
@@ -68,7 +68,7 @@ public final class SessionScanner {
                 sessions.append(cached.session)
             } else {
                 let session = try autoreleasepool {
-                    SessionParser.parse(
+                    CodexSessionParser.parse(
                         data: try Data(contentsOf: url), fileID: url.lastPathComponent)
                 }
                 cache[url] = Cached(size: size, modified: modified, inode: inode, session: session)
@@ -129,7 +129,8 @@ public final class SessionScanner {
         // Prefer original parent records to inherited copies for model attribution.
         for session in mergedSessions {
             let root = lineageRoot(session.id)
-            for event in SessionParser.normalize(session, diagnostics: &normalizationDiagnostics)
+            for event in CodexSessionParser.normalize(
+                session, diagnostics: &normalizationDiagnostics)
             where seen.insert(root + "|" + event.identity).inserted { events.append(event) }
         }
         events.sort {
@@ -141,7 +142,7 @@ public final class SessionScanner {
             fileCount: files.count)
     }
 }
-public enum ScanError: LocalizedError {
+public enum CodexScanError: LocalizedError {
     case unreadable(String)
     public var errorDescription: String? {
         switch self {

@@ -15,9 +15,7 @@ enum CostReport {
             now = Date()
         }
         let pricing = try PricingStore.cachedCatalog()
-        let scan = try UsageScanner().scan(
-            codexHome: AppModel.resolveHome(), claudeHome: AppModel.resolveClaudeHome(),
-            piHome: AppModel.resolvePiHome(), openCodeHome: AppModel.resolveOpenCodeHome())
+        let scan = try UsageScanner().scan(.resolve())
         let summary = SummaryBuilder.build(
             events: scan.events, now: now, calendar: .current, pricing: pricing)
         func period(_ cost: PeriodCost) -> [String: Any] {
