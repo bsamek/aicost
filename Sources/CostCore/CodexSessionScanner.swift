@@ -1,80 +1,13 @@
-import Darwin
 import Foundation
 
 public final class CodexSessionScanner {
-    private struct Cached {
-        let size: UInt64
-        let modified: Date
-        let inode: UInt64
-        let session: ParsedSession
-    }
-    private var cache: [URL: Cached] = [:]
+    private let logs = JSONLLogCache<ParsedSession>(agent: "Codex")
     public init() {}
 
     public func scan(home: URL) throws -> ScanResult {
-        let manager = FileManager.default
-        var files: [URL] = []
-        for name in ["sessions", "archived_sessions"] {
-            let root = home.appendingPathComponent(name)
-            var metadata = stat()
-            if Darwin.fstatat(AT_FDCWD, root.path, &metadata, 0) != 0 {
-                let errorCode = errno
-                if errorCode == ENOENT { continue }
-                throw NSError(
-                    domain: NSPOSIXErrorDomain, code: Int(errorCode),
-                    userInfo: [NSFilePathErrorKey: root.path])
-            }
-            guard metadata.st_mode & S_IFMT == S_IFDIR else {
-                throw CodexScanError.unreadable(root.path)
-            }
-            var enumerationError: Error?
-            guard
-                let enumerator = manager.enumerator(
-                    at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-                    options: [.skipsHiddenFiles],
-                    errorHandler: { _, error in
-                        enumerationError = error
-                        return false
-                    })
-            else { throw CodexScanError.unreadable(root.path) }
-            for case let url as URL in enumerator {
-                let values = try url.resourceValues(forKeys: [
-                    .isRegularFileKey, .isSymbolicLinkKey,
-                ])
-                if values.isSymbolicLink == true {
-                    enumerator.skipDescendants()
-                    continue
-                }
-                if values.isRegularFile == true && url.pathExtension == "jsonl" {
-                    files.append(url)
-                }
-            }
-            if let enumerationError { throw enumerationError }
-        }
-        let existing = Set(files)
-        cache = cache.filter { existing.contains($0.key) }
-        var sessions: [ParsedSession] = []
-        for url in files.sorted(by: { $0.path < $1.path }) {
-            let attributes = try manager.attributesOfItem(atPath: url.path)
-            guard manager.isReadableFile(atPath: url.path) else {
-                throw CodexScanError.unreadable(url.path)
-            }
-            let size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
-            let modified = attributes[.modificationDate] as? Date ?? .distantPast
-            let inode = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0
-            if let cached = cache[url], cached.size == size, cached.modified == modified,
-                cached.inode == inode
-            {
-                sessions.append(cached.session)
-            } else {
-                let session = try autoreleasepool {
-                    CodexSessionParser.parse(
-                        data: try Data(contentsOf: url), fileID: url.lastPathComponent)
-                }
-                cache[url] = Cached(size: size, modified: modified, inode: inode, session: session)
-                sessions.append(session)
-            }
-        }
+        var sessions = try logs.load(
+            roots: ["sessions", "archived_sessions"].map { home.appendingPathComponent($0) }
+        ) { data, url in CodexSessionParser.parse(data: data, fileID: url.lastPathComponent) }
         // Active and archived copies can have different intermediate snapshots.
         // Merge their raw counters before turning those counters into billable deltas.
         var merged: [String: ParsedSession] = [:]
@@ -139,14 +72,6 @@ public final class CodexSessionScanner {
         return ScanResult(
             events: events,
             diagnostics: max(normalizationDiagnostics, sessions.reduce(0) { $0 + $1.diagnostics }),
-            fileCount: files.count)
-    }
-}
-public enum CodexScanError: LocalizedError {
-    case unreadable(String)
-    public var errorDescription: String? {
-        switch self {
-        case .unreadable(let path): "Cannot read Codex log: \(path)"
-        }
+            fileCount: sessions.count)
     }
 }
