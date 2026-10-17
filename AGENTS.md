@@ -28,4 +28,4 @@ For panel appearance changes, also run the native UI capture command and inspect
 
 Keep changes focused and broad formatting separate from behavior changes. The public app name is Token Meter; Swift targets, executable, resource bundle, and bundle identity still use CodexCost. Preserve those internal identifiers unless migration is explicitly in scope.
 
-Current guidance lives in the README, CONTRIBUTING, architecture, accounting, and release documents. The original October 10 spec and plan under `docs/superpowers` are historical records, not instructions to execute or a current backlog.
+Current guidance lives in the README, CONTRIBUTING, architecture, accounting, and release documents.
