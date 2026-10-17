@@ -4,7 +4,7 @@ AI coding costs in your menu bar.
 
 See the API-equivalent cost of your coding agents in the macOS menu bar. Token Meter reads local **Codex, Claude Code, Pi, and OpenCode** usage and estimates what the recorded tokens would cost at published Standard API rates—even when you use a subscription.
 
-![Token Meter panel showing Today and This Month totals, model costs, update controls, and Restart and Quit actions](docs/images/usage-panel.png)
+![Token Meter panel showing Today and This Month totals, per-model costs including an unpriced model, update controls, and Restart and Quit actions](docs/images/usage-panel.png)
 
 *Current native panel captured with synthetic usage data and preview version 0.0.0. Models appear alphabetically by provider and family. The footer includes update controls, Restart, and Quit.*
 
