@@ -4,6 +4,8 @@ See the [README](../README.md) for user installation instructions.
 
 The tag workflow in `.github/workflows/release.yml` calls the same test-and-package workflow used for PRs and `main`. It uses macOS 15, Xcode 16.4 and the standard Swift toolchain; Sparkle 2 is pinned in `Package.swift` and `Package.resolved`. The app is built for arm64 with an explicit macOS 13 deployment target; Intel Macs are not supported. This is a repeatable build recipe, not a claim of byte-for-byte identical ZIPs (build numbers, signatures and archive timestamps can differ).
 
+Dependabot proposes weekly grouped GitHub Actions updates. `.github/workflows/dependabot-auto-merge.yml` enables squash auto-merge on its PRs, and the default-branch ruleset holds the merge until the required test and packaging checks pass. Release-only steps, such as `download-artifact` in the publish job, first run on the next tag.
+
 To validate a release locally without publishing:
 
 ```sh
