@@ -65,11 +65,8 @@ extension PricingCatalog {
         if provider == "openrouter" {
             return .unpriced("Pi OpenRouter serving-route rate unavailable")
         }
-        let apiProvider =
-            provider == "openai-codex"
-            ? "openai" : provider == "fireworks" ? "fireworks-ai" : provider
         let modelRates: ModelRates?
-        if let remote = api[apiProvider + "/" + model] {
+        if let remote = api[ModelNaming.pricingProvider(provider) + "/" + model] {
             modelRates = remote
         } else {
             switch provider {
