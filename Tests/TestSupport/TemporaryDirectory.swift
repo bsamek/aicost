@@ -9,13 +9,15 @@ public func withTemporaryDirectory<T>(
     return try body(root)
 }
 
-public func withTemporaryDirectory<T>(
+/// Runs on the caller's actor, so `@MainActor` tests can use it. Returns nothing because
+/// Swift 6.1 rejects sending a non-Sendable generic result out of `body`.
+public func withTemporaryDirectory(
     creating subdirectories: [String] = [], isolation: isolated (any Actor)? = #isolation,
-    _ body: (URL) async throws -> T
-) async throws -> T {
+    _ body: (URL) async throws -> Void
+) async throws {
     let root = try makeTemporaryDirectory(creating: subdirectories)
     defer { try? FileManager.default.removeItem(at: root) }
-    return try await body(root)
+    try await body(root)
 }
 
 /// Writes `data` at `relative` below `root`, creating intermediate directories.
