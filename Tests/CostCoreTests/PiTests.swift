@@ -1,4 +1,5 @@
 import Foundation
+import TestSupport
 import Testing
 
 @testable import CostCore
@@ -8,13 +9,13 @@ struct PiTests {
         let scan = PiSessionParser.parse(data: piData(piFixture()))
         let event = try #require(scan.events.first)
         #expect(event.model == "gpt-6.1-sol")
-        #expect(event.piProvider == "openai-codex")
+        #expect(event.provider == "openai-codex")
         #expect(event.requestInput == 1300)
-        #expect(try PricingCatalog.load().cost(for: event).usd == Decimal(string: "0.00427"))
+        #expect(try fixturePricing().cost(for: event).usd == Decimal(string: "0.00427"))
         #expect(scan.diagnostics == 0)
     }
     @Test func pricesProviderSpecificRatesAndContextBoundary() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         for (provider, model, writes, hour, expected) in [
             ("fireworks", "accounts/fireworks/models/deepseek-v4p1-flash", 0, "null", "0.0005412"),
             ("fireworks", "accounts/fireworks/models/glm-5p3-flash", 0, "null", "0.000256"),
@@ -35,7 +36,7 @@ struct PiTests {
         }
     }
     @Test func unsupportedProvidersModelsAndCacheDurationsStayExplicit() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         for fixture in [
             piFixture(provider: "openrouter"), piFixture(provider: "custom"),
             piFixture(provider: "fireworks", model: "gpt-6.1-sol"),
@@ -69,7 +70,7 @@ struct PiTests {
         #expect(PiSessionParser.parse(data: Data("{broken".utf8)).diagnostics == 1)
     }
     @Test func scannerDeduplicatesCopiesAndRetainsSeparateCallsAcrossProviders() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             let first = piData(piFixture())
             let original = home.appendingPathComponent("sessions/original.jsonl")
             try first.write(to: original)
@@ -89,7 +90,7 @@ struct PiTests {
         }
     }
     @Test func fallbackEntryIdentityDeduplicatesInheritedHistoryAndDetectsConflicts() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             let fixture = piFixture(response: "")
             try piData(
                 fixture + "\n" + fixture + "\n" + piFixture(response: "", provider: "custom")
@@ -103,8 +104,8 @@ struct PiTests {
             #expect(scan.events.count == 2)
             #expect(scan.diagnostics > 0)
             #expect(
-                try PricingCatalog.load().cost(
-                    for: scan.events.first { $0.piProvider == "openai-codex" }!
+                try fixturePricing().cost(
+                    for: scan.events.first { $0.provider == "openai-codex" }!
                 ).usd == nil)
         }
     }
@@ -117,7 +118,7 @@ struct PiTests {
         let scan = PiSessionParser.parse(data: piData(records))
         #expect(scan.events.count == 3)
         #expect(scan.diagnostics == 2)
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         let attributed = try #require(scan.events.first { $0.model != nil })
         #expect(pricing.cost(for: attributed).usd == Decimal(string: "0.002"))
         let formatter = ISO8601DateFormatter()
@@ -137,7 +138,7 @@ struct PiTests {
             ])
     }
     @Test func auxiliaryUsageUsesISOTimestampAndInheritedCopiesCountOnce() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             let records = [
                 piAuxiliaryFixture(
                     type: "usage", id: "prior-month", timestamp: "2026-10-01T03:59:59Z"),
@@ -158,14 +159,14 @@ struct PiTests {
             let summary = SummaryBuilder.build(
                 events: scan.events,
                 now: ISO8601DateFormatter().date(from: "2026-10-12T17:00:00Z")!, calendar: calendar,
-                pricing: try PricingCatalog.load())
+                pricing: try fixturePricing())
             #expect(summary.today.total == Decimal(string: "0.002"))
             #expect(summary.month.total == Decimal(string: "0.004"))
             #expect(summary.today.unpricedCount == 1)
         }
     }
     @Test func sharedProviderResponseIDDeduplicatesAssistantAndAuxiliaryRecords() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             let auxiliary = piAuxiliaryFixture(type: "usage", id: "imported")
                 .replacingOccurrences(
                     of: "\"usage\":", with: "\"responseId\":\"resp_one\",\"usage\":"
@@ -181,7 +182,7 @@ struct PiTests {
             #expect(scan.events.count == 1)
             #expect(scan.diagnostics == 0)
             #expect(
-                try PricingCatalog.load().cost(for: scan.events[0]).usd
+                try fixturePricing().cost(for: scan.events[0]).usd
                     == Decimal(string: "0.00427"))
         }
     }
@@ -192,7 +193,7 @@ struct PiTests {
                     of: "\"provider\":\"openai-codex\",\"model\":\"gpt-6.1-sol\",", with: "")))
         let event = try #require(missing.events.first)
         #expect(event.model == nil)
-        #expect(try PricingCatalog.load().cost(for: event).usd == nil)
+        #expect(try fixturePricing().cost(for: event).usd == nil)
         #expect(missing.diagnostics == 1)
         for fixture in [
             piAuxiliaryFixture(type: "usage", id: "", timestamp: "2026-10-12T13:00:00Z"),
@@ -208,7 +209,7 @@ struct PiTests {
         #expect(PiSessionParser.parse(data: piData(withoutUsage)).diagnostics == 0)
     }
     @Test func fallbackModelConflictCountsOnceAndRemainsUnpriced() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             try piData(piFixture(response: "")).write(
                 to: home.appendingPathComponent("sessions/a.jsonl"))
             try piData(piFixture(response: "", model: "gpt-6-astra"), session: "fork").write(
@@ -217,11 +218,11 @@ struct PiTests {
             let event = try #require(scan.events.first)
             #expect(scan.events.count == 1)
             #expect(scan.diagnostics == 1)
-            #expect(try PricingCatalog.load().cost(for: event).usd == nil)
+            #expect(try fixturePricing().cost(for: event).usd == nil)
         }
     }
     @Test func missingRootIsEmptyBadRootThrowsAndChangesInvalidateCache() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             let scanner = PiSessionScanner()
             let file = home.appendingPathComponent("sessions/a.jsonl")
             try piData(piFixture()).write(to: file)
@@ -236,7 +237,7 @@ struct PiTests {
         }
     }
     @Test func partialActiveLineIsDiagnosedAndCompletionIsReadOnNextScan() throws {
-        try withPiHome { home in
+        try withTemporaryDirectory(creating: ["sessions"]) { home in
             let file = home.appendingPathComponent("sessions/active.jsonl")
             let next = piFixture(id: "second", response: "resp_second")
             try (piData(piFixture()) + Data(("\n" + String(next.prefix(40))).utf8)).write(to: file)
@@ -272,7 +273,7 @@ struct PiTests {
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let summary = SummaryBuilder.build(
             events: events, now: formatter.date(from: "2026-10-12T16:00:00Z")!, calendar: calendar,
-            pricing: try PricingCatalog.load())
+            pricing: try fixturePricing())
         #expect(summary.today.total == Decimal(string: "0.00427"))
         #expect(summary.month.total == Decimal(string: "0.00854"))
         #expect(summary.today.models.first?.model == "openai-codex/gpt-6.1-sol")
@@ -302,11 +303,4 @@ private func piData(_ records: String, session: String = "session", version: Int
     Data(
         ("{\"type\":\"session\",\"id\":\"\(session)\",\"version\":\(version),\"timestamp\":\"2026-10-12T00:00:00Z\"}\n"
             + records).utf8)
-}
-private func withPiHome(_ body: (URL) throws -> Void) throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(
-        at: home.appendingPathComponent("sessions"), withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: home) }
-    try body(home)
 }

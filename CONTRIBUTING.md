@@ -29,7 +29,7 @@ Open `Package.swift` in Xcode to navigate and debug the package, or use your edi
 
 Formatting uses the toolchain's `swift format` and the checked-in `.swift-format`. Use CI's Xcode version when resolving formatter differences between toolchains. Keep broad formatting changes separate from behavior changes.
 
-`scripts/check.sh` keeps compiler caches under `.build` by default and accepts additional Swift test options, such as `--filter ScannerTests`. Tests use synthetic fixtures and temporary directories; they need no personal logs. Do not run packaging concurrently with builds or tests: the relocated-bundle verifier temporarily moves `.build`.
+`scripts/check.sh` keeps compiler caches under `.build` by default and accepts additional Swift test options, such as `--filter CodexScannerTests`. Tests use synthetic fixtures and temporary directories; they need no personal logs. Accounting tests price events with `fixturePricing()` in `Tests/CostCoreTests/Support`, so bundled price updates only affect `BundledPricingTests`. Shared helpers for both test targets live in `Tests/TestSupport`. Do not run packaging concurrently with builds or tests: the relocated-bundle verifier temporarily moves `.build`.
 
 ### Command Line Tools workaround
 

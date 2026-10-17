@@ -19,12 +19,7 @@ public struct PeriodCost: Sendable {
         var rows: [ModelCost] = []
         var indices: [String: Int] = [:]
         for var row in models {
-            switch row.model {
-            case "fireworks-ai/accounts/fireworks/models/deepseek-v4p1-flash",
-                "fireworks-ai/accounts/fireworks/models/glm-5p3-flash":
-                row.model = "fireworks/" + row.model.dropFirst("fireworks-ai/".count)
-            default: break
-            }
+            row.model = ModelNaming.displayRow(row.model)
             if let index = indices[row.model] {
                 rows[index].total += row.total
                 rows[index].pricedCount += row.pricedCount
@@ -56,7 +51,7 @@ public enum SummaryBuilder {
                 && event.timestamp <= now
             {
                 let name =
-                    (event.piProvider ?? event.openCodeProvider).map {
+                    event.provider.map {
                         $0 + "/" + (event.model ?? "Unknown model")
                     } ?? (event.model ?? "Unknown model")
                 var row = rows[name] ?? ModelCost(model: name)

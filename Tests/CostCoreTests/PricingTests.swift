@@ -15,10 +15,10 @@ struct PricingTests {
         let pricing = try testPricing()
         var event = testEvent(model: "tiered", usage: TokenUsage(input: 272_000, output: 1000))
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.554"))
-        event.usage.input = 272_001
+        event.usage = .codex(TokenUsage(input: 272_001, output: 1000))
         event.requestInput = 272_001
         #expect(pricing.cost(for: event).usd == Decimal(string: "1.103004"))
-        event.usage.input = 1_000_000
+        event.usage = .codex(TokenUsage(input: 1_000_000, output: 1000))
         event.requestInput = 100_000
         #expect(pricing.cost(for: event).usd == Decimal(string: "2.01"))
         event.requestInput = nil
@@ -39,23 +39,4 @@ struct PricingTests {
             try testPricing().cost(for: testEvent(usage: TokenUsage(input: 10, cached: 11))).usd
                 == nil)
     }
-}
-func testPricing() throws -> PricingCatalog {
-    try PricingCatalog(
-        data: Data(
-            """
-            {"source":"fixture","verifiedAt":"2026-10-10","longContextThreshold":272000,"models":{
-                "plain":{"short":{"input":"2","cached":"0.10","output":"10"}},
-                "tiered":{"short":{"input":"2","cached":"0.10","output":"10"},"long":{"input":"4","cached":"0.20","output":"15"}}
-            }}
-            """.utf8))
-}
-func testEvent(
-    model: String? = "plain", usage: TokenUsage = TokenUsage(input: 1_000_000),
-    timestamp: String = "2026-10-10T12:00:00Z"
-) -> UsageEvent {
-    UsageEvent(
-        identity: UUID().uuidString, sessionID: "s",
-        timestamp: ISO8601DateFormatter().date(from: timestamp)!, model: model, usage: usage,
-        requestInput: usage.input)
 }

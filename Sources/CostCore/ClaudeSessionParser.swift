@@ -83,13 +83,12 @@ public enum ClaudeSessionParser {
                     continue
                 }
                 let usage = record.message.usage
-                var event = UsageEvent(
+                let event = UsageEvent(
                     identity: "claude|" + record.message.id,
                     sessionID: record.sessionId ?? "unknown",
-                    timestamp: date, model: record.message.model, usage: .zero,
-                    requestInput: usage.requestInput, issue: usage.cacheIssue)
-                event.claudeUsage = usage
-                event.requestID = record.requestId
+                    timestamp: date, model: record.message.model, usage: .claude(usage),
+                    requestInput: usage.requestInput, issue: usage.cacheIssue,
+                    requestID: record.requestId)
                 events.append(event)
                 if event.issue != nil { diagnostics += 1 }
             } catch { diagnostics += 1 }

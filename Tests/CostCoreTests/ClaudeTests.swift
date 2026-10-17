@@ -1,4 +1,5 @@
 import Foundation
+import TestSupport
 import Testing
 
 @testable import CostCore
@@ -11,10 +12,10 @@ struct ClaudeTests {
         #expect(event.claudeUsage?.cacheRead == 23422)
         #expect(event.claudeUsage?.cacheWrite1h == 19357)
         #expect(event.requestInput == 42781)
-        #expect(try PricingCatalog.load().cost(for: event).usd == Decimal(string: "0.206991"))
+        #expect(try fixturePricing().cost(for: event).usd == Decimal(string: "0.206991"))
     }
     @Test func deduplicatesInheritedCopiesAndIncludesNestedAgents() throws {
-        try withClaudeHome { home in
+        try withTemporaryDirectory(creating: ["projects"]) { home in
             let original = Data(claudeFixture().utf8)
             try original.write(to: home.appendingPathComponent("projects/a.jsonl"))
             let nested = home.appendingPathComponent("projects/session/subagents")
@@ -48,7 +49,7 @@ struct ClaudeTests {
         }
     }
     @Test func missingDirectoryIsEmptyAndBadRootThrows() throws {
-        try withClaudeHome { home in
+        try withTemporaryDirectory(creating: ["projects"]) { home in
             try FileManager.default.removeItem(at: home.appendingPathComponent("projects"))
             #expect(try ClaudeSessionScanner().scan(home: home).events.isEmpty)
             try Data("invalid".utf8).write(to: home.appendingPathComponent("projects"))
@@ -56,18 +57,18 @@ struct ClaudeTests {
         }
     }
     @Test func conflictingDuplicatesAreUnpriced() throws {
-        try withClaudeHome { home in
+        try withTemporaryDirectory(creating: ["projects"]) { home in
             try Data((claudeFixture() + "\n" + claudeFixture(output: 99)).utf8).write(
                 to: home.appendingPathComponent("projects/a.jsonl"))
             let scan = try ClaudeSessionScanner().scan(home: home)
             #expect(scan.events.count == 1)
-            #expect(try PricingCatalog.load().cost(for: scan.events[0]).usd == nil)
+            #expect(try fixturePricing().cost(for: scan.events[0]).usd == nil)
             #expect(scan.diagnostics > 0)
         }
     }
     @Test func missingTTLAndInvalidCountsAreDiagnosed() throws {
         let unknown = ClaudeSessionParser.parse(data: Data(claudeFixture(split: "null").utf8))
-        #expect(try PricingCatalog.load().cost(for: unknown.events[0]).usd == nil)
+        #expect(try fixturePricing().cost(for: unknown.events[0]).usd == nil)
         let bad = ClaudeSessionParser.parse(data: Data(claudeFixture(input: -1).utf8))
         #expect(bad.events.isEmpty)
         #expect(bad.diagnostics == 1)
@@ -76,11 +77,11 @@ struct ClaudeTests {
                 claudeFixture(
                     split: "{\"ephemeral_5m_input_tokens\":1,\"ephemeral_1h_input_tokens\":1}"
                 ).utf8))
-        #expect(try PricingCatalog.load().cost(for: mismatch.events[0]).usd == nil)
+        #expect(try fixturePricing().cost(for: mismatch.events[0]).usd == nil)
         #expect(ClaudeSessionParser.parse(data: Data("{broken".utf8)).diagnostics == 1)
     }
     @Test func mixedTTLAndModelSpecificContextBoundary() throws {
-        let pricing = try PricingCatalog.load()
+        let pricing = try fixturePricing()
         for (input, expected) in [(Int64(99970), "0.01000085"), (Int64(99971), "0.05000475")] {
             let fixture = claudeFixture(
                 model: "claude-haiku-5-5", input: input, read: 10, writes: 20, output: 1,
@@ -91,7 +92,7 @@ struct ClaudeTests {
         }
     }
     @Test func datesUseLocalCalendarAndEarliestDuplicateTimestamp() throws {
-        try withClaudeHome { home in
+        try withTemporaryDirectory(creating: ["projects"]) { home in
             let lines = [
                 claudeFixture(id: "prior", timestamp: "2026-10-01T03:59:59Z"),
                 claudeFixture(timestamp: "2026-10-11T03:59:59Z"),
@@ -105,20 +106,13 @@ struct ClaudeTests {
             let events = try ClaudeSessionScanner().scan(home: home).events
             let summary = SummaryBuilder.build(
                 events: events, now: ISO8601DateFormatter().date(from: "2026-10-11T04:00:01Z")!,
-                calendar: calendar, pricing: try PricingCatalog.load())
+                calendar: calendar, pricing: try fixturePricing())
             #expect(summary.today.total == 0)
             #expect(summary.month.total == Decimal(string: "0.206991"))
         }
     }
 }
-func withClaudeHome(_ body: (URL) throws -> Void) throws {
-    let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(
-        at: home.appendingPathComponent("projects"), withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: home) }
-    try body(home)
-}
-func claudeFixture(
+private func claudeFixture(
     id: String = "msg_one", session: String = "s", timestamp: String = "2026-10-10T12:00:00Z",
     model: String = "claude-opus-5", input: Int64 = 2, read: Int64 = 23422, writes: Int64 = 19357,
     output: Int64 = 68,

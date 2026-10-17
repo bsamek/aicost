@@ -20,8 +20,9 @@ let package = Package(
                 .unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])
             ]
         ),
-        .testTarget(name: "CostCoreTests", dependencies: ["CostCore"]),
-        .testTarget(name: "AppTests", dependencies: ["CodexCost", "CostCore"]),
+        .target(name: "TestSupport", path: "Tests/TestSupport"),
+        .testTarget(name: "CostCoreTests", dependencies: ["CostCore", "TestSupport"]),
+        .testTarget(name: "AppTests", dependencies: ["CodexCost", "CostCore", "TestSupport"]),
     ],
     swiftLanguageModes: [.v6]
 )

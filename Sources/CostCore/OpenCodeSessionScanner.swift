@@ -4,6 +4,7 @@ import SQLite3
 public final class OpenCodeSessionScanner {
     private let manager: FileManager
     public init(fileManager: FileManager = .default) { manager = fileManager }
+
     public func scan(home: URL) throws -> ScanResult {
         let source = home.appendingPathComponent("opencode.db")
         // Inspect only the usage database; never read auth/configuration files.
@@ -19,26 +20,7 @@ public final class OpenCodeSessionScanner {
         )
         defer { try? manager.removeItem(at: snapshot) }
         let database = snapshot.appendingPathComponent("opencode.db")
-        // Opening a live WAL database can create/write its SHM sidecar, even in
-        // SQLite read-only mode. Copy a stable DB + committed WAL to private temp
-        // storage first. Never use immutable=1 (which would ignore live WAL).
-        var stable = false
-        for _ in 0..<3 {
-            let before = try stamps(source)
-            for suffix in ["", "-wal"] {
-                let target = URL(fileURLWithPath: database.path + suffix)
-                if manager.fileExists(atPath: target.path) { try manager.removeItem(at: target) }
-                if before[suffix] != nil {
-                    try manager.copyItem(at: URL(fileURLWithPath: source.path + suffix), to: target)
-                    try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
-                }
-            }
-            if before == (try stamps(source)) {
-                stable = true
-                break
-            }
-        }
-        guard stable else { throw OpenCodeScanError.changingDatabase }
+        try copyStableSnapshot(of: source, to: database)
         var handle: OpaquePointer?
         guard
             sqlite3_open_v2(
@@ -57,6 +39,37 @@ public final class OpenCodeSessionScanner {
         guard tables.contains("message") || tables.contains("session_message") else {
             throw OpenCodeScanError.unsupportedSchema
         }
+        let (records, diagnostics) = try readRecords(db, tables: tables)
+        let events = Self.excludingInheritedCopies(
+            records, sessionCreated: try sessionCreationTimes(db, tables: tables))
+        return ScanResult(
+            events: events.sorted { ($0.timestamp, $0.identity) < ($1.timestamp, $1.identity) },
+            diagnostics: diagnostics, fileCount: 1)
+    }
+
+    /// Opening a live WAL database can create/write its SHM sidecar, even in
+    /// SQLite read-only mode. Copy a stable DB + committed WAL to private temp
+    /// storage first. Never use immutable=1 (which would ignore live WAL).
+    private func copyStableSnapshot(of source: URL, to database: URL) throws {
+        for _ in 0..<3 {
+            let before = try stamps(source)
+            for suffix in ["", "-wal"] {
+                let target = URL(fileURLWithPath: database.path + suffix)
+                if manager.fileExists(atPath: target.path) { try manager.removeItem(at: target) }
+                if before[suffix] != nil {
+                    try manager.copyItem(at: URL(fileURLWithPath: source.path + suffix), to: target)
+                    try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+                }
+            }
+            if before == (try stamps(source)) { return }
+        }
+        throw OpenCodeScanError.changingDatabase
+    }
+
+    /// The earliest creation time recorded for each session ID.
+    private func sessionCreationTimes(_ db: OpaquePointer, tables: Set<String>) throws
+        -> [String: Int64]
+    {
         var sessions: [String: Int64] = [:]
         for table in ["session", "session_v2"] where tables.contains(table) {
             for row in try rows(db, "SELECT id,time_created FROM \(table)") {
@@ -65,6 +78,13 @@ public final class OpenCodeSessionScanner {
                 }
             }
         }
+        return sessions
+    }
+
+    /// One record per message ID. Conflicting duplicates stay unpriced.
+    private func readRecords(_ db: OpaquePointer, tables: Set<String>) throws -> (
+        records: [OpenCodeRecord], diagnostics: Int
+    ) {
         var records: [String: OpenCodeRecord] = [:]
         var modernIDs: Set<String> = []
         var diagnostics = 0
@@ -93,9 +113,8 @@ public final class OpenCodeSessionScanner {
                 diagnostics += parsed.diagnostics
                 guard let record = parsed.record else { continue }
                 if var original = records[row[0]] {
-                    if original.event.openCodeUsage != record.event.openCodeUsage
+                    if original.event.usage != record.event.usage
                         || original.event.model != record.event.model
-                        || original.event.openCodeProvider != record.event.openCodeProvider
                         || original.created != record.created
                         || original.completed != record.completed
                     {
@@ -109,57 +128,46 @@ public final class OpenCodeSessionScanner {
                 }
             }
         }
-        let sorted = records.values.sorted {
+        return (Array(records.values), diagnostics)
+    }
+
+    /// V1 forks generate new IDs but preserve the entire original time span.
+    /// Only a record predating its own session is an inherited candidate.
+    /// Unrelated calls with identical counters/timestamps remain separate.
+    static func excludingInheritedCopies(
+        _ records: [OpenCodeRecord], sessionCreated: [String: Int64]
+    ) -> [UsageEvent] {
+        let sorted = records.sorted {
             ($0.created, $0.event.identity) < ($1.created, $1.event.identity)
+        }
+        func predatesSession(_ record: OpenCodeRecord) -> Bool {
+            sessionCreated[record.event.sessionID].map { $0 > record.completed } == true
         }
         var originals: [String: OpenCodeRecord] = [:]
         var events: [UsageEvent] = []
-        // V1 forks generate new IDs but preserve the entire original time span.
-        // Only a record predating its own session is an inherited candidate.
-        // Unrelated calls with identical counters/timestamps remain separate.
-        for record in sorted
-        where sessions[record.event.sessionID].map({ $0 > record.completed }) != true {
+        for record in sorted where !predatesSession(record) {
             originals[record.copyKey] = record
             events.append(record.event)
         }
         var inherited: [String: OpenCodeRecord] = [:]
-        for record in sorted
-        where sessions[record.event.sessionID].map({ $0 > record.completed }) == true {
-            if let original = originals[record.copyKey],
-                original.event.sessionID != record.event.sessionID
-            {
-                continue
-            }
-            if let original = inherited[record.copyKey],
-                original.event.sessionID != record.event.sessionID
-            {
-                continue
-            }
+        for record in sorted where predatesSession(record) {
+            let copies = [originals[record.copyKey], inherited[record.copyKey]].compactMap { $0 }
+            if copies.contains(where: { $0.event.sessionID != record.event.sessionID }) { continue }
             inherited[record.copyKey] = record
             events.append(record.event)
         }
-        return ScanResult(
-            events: events.sorted { ($0.timestamp, $0.identity) < ($1.timestamp, $1.identity) },
-            diagnostics: diagnostics, fileCount: 1)
+        return events
     }
 
-    private struct Stamp: Equatable {
-        let size: UInt64
-        let modified: Date
-        let inode: UInt64
-    }
-    private func stamps(_ source: URL) throws -> [String: Stamp] {
-        var result: [String: Stamp] = [:]
+    private func stamps(_ source: URL) throws -> [String: FileStamp] {
+        var result: [String: FileStamp] = [:]
         for suffix in ["", "-wal"] {
             do {
                 let attributes = try manager.attributesOfItem(atPath: source.path + suffix)
                 guard attributes[.type] as? FileAttributeType == .typeRegular,
                     manager.isReadableFile(atPath: source.path + suffix)
                 else { throw OpenCodeScanError.unreadable }
-                result[suffix] = Stamp(
-                    size: (attributes[.size] as? NSNumber)?.uint64Value ?? 0,
-                    modified: attributes[.modificationDate] as? Date ?? .distantPast,
-                    inode: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value ?? 0)
+                result[suffix] = FileStamp(attributes)
             } catch let error as NSError
                 where suffix != "" && error.domain == NSCocoaErrorDomain
                 && error.code == NSFileReadNoSuchFileError

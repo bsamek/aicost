@@ -110,7 +110,7 @@ struct SummaryTests {
         #expect(summary.month.models.isEmpty)
     }
 }
-func buildSummary(_ events: [UsageEvent], now: String) throws -> CostSummary {
+private func buildSummary(_ events: [UsageEvent], now: String) throws -> CostSummary {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "America/New_York")!
     return SummaryBuilder.build(
@@ -130,13 +130,13 @@ private func orderedSummary(_ events: [UsageEvent], models: [String]) throws -> 
     // Raw Claude IDs belong to Claude usage; don't route ordering fixtures through Codex pricing.
     let attributed = try events.map { event in
         var event = event
-        if event.model?.hasPrefix("claude-") == true {
+        if event.model?.hasPrefix("claude-") == true, let codex = event.codexUsage {
             let data = try JSONSerialization.data(withJSONObject: [
-                "input_tokens": event.usage.input,
-                "cache_read_input_tokens": event.usage.cached, "cache_creation_input_tokens": 0,
-                "output_tokens": event.usage.output,
+                "input_tokens": codex.input,
+                "cache_read_input_tokens": codex.cached, "cache_creation_input_tokens": 0,
+                "output_tokens": codex.output,
             ])
-            event.claudeUsage = try JSONDecoder().decode(ClaudeTokenUsage.self, from: data)
+            event.usage = .claude(try JSONDecoder().decode(ClaudeTokenUsage.self, from: data))
         }
         return event
     }

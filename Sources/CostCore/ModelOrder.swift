@@ -15,15 +15,14 @@ struct ModelOrder: Comparable {
         let parts = foldedModel.split(separator: "/", omittingEmptySubsequences: false)
         let namespace = parts.count > 1 ? String(parts[0]) : nil
         let name = String(parts.last ?? "")
-        switch namespace {
-        case "anthropic", "fireworks", "opencode", "opencode-go", "openrouter":
-            provider = namespace!
-        case "fireworks-ai": provider = "fireworks"
-        case "openai", "openai-codex": provider = "openai"
-        case nil where name.hasPrefix("claude-"): provider = "anthropic"
-        case nil where name.hasPrefix("gpt-") || Self.capture("^o[0-9]", in: name) != nil:
+        if let namespace {
+            provider = ModelNaming.orderingProvider(namespace) ?? ""
+        } else if name.hasPrefix("claude-") {
+            provider = "anthropic"
+        } else if name.hasPrefix("gpt-") || Self.capture("^o[0-9]", in: name) != nil {
             provider = "openai"
-        default: provider = ""
+        } else {
+            provider = ""
         }
         family = ""
         version = []
@@ -83,7 +82,7 @@ struct ModelOrder: Comparable {
         version.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
     }
 
-    private static func capture(_ pattern: String, in name: String) -> [String]? {
+    static func capture(_ pattern: String, in name: String) -> [String]? {
         guard let expression = try? NSRegularExpression(pattern: pattern),
             let match = expression.firstMatch(
                 in: name, range: NSRange(name.startIndex..., in: name))
