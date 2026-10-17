@@ -56,7 +56,7 @@ public enum SummaryBuilder {
                 && event.timestamp <= now
             {
                 let name =
-                    (event.piProvider ?? event.openCodeProvider).map {
+                    event.provider.map {
                         $0 + "/" + (event.model ?? "Unknown model")
                     } ?? (event.model ?? "Unknown model")
                 var row = rows[name] ?? ModelCost(model: name)

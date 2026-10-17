@@ -102,14 +102,12 @@ public enum PiSessionParser {
                             String(date.timeIntervalSince1970),
                         ]
                     let identity = parts.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
-                    var event = UsageEvent(
-                        identity: identity, sessionID: sessionID, timestamp: date,
-                        model: model, usage: .zero, requestInput: record.usage.requestInput,
-                        issue: issue)
-                    event.piUsage = record.usage
-                    event.piProvider = provider
-                    event.requestID = response
-                    events.append(event)
+                    events.append(
+                        UsageEvent(
+                            identity: identity, sessionID: sessionID, timestamp: date,
+                            model: model, usage: .pi(record.usage, provider: provider),
+                            requestInput: record.usage.requestInput, issue: issue,
+                            requestID: response))
                     if issue != nil { diagnostics += 1 }
                     continue
                 }
@@ -144,15 +142,14 @@ public enum PiSessionParser {
                         String(messageRecord.timestamp),
                     ]
                 let identity = identityParts.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
-                var event = UsageEvent(
-                    identity: identity, sessionID: sessionID,
-                    timestamp: Date(timeIntervalSince1970: Double(messageRecord.timestamp) / 1000),
-                    model: model,
-                    usage: .zero, requestInput: messageRecord.usage.requestInput)
-                event.piUsage = messageRecord.usage
-                event.piProvider = messageRecord.provider
-                event.requestID = response
-                events.append(event)
+                events.append(
+                    UsageEvent(
+                        identity: identity, sessionID: sessionID,
+                        timestamp: Date(
+                            timeIntervalSince1970: Double(messageRecord.timestamp) / 1000),
+                        model: model,
+                        usage: .pi(messageRecord.usage, provider: messageRecord.provider),
+                        requestInput: messageRecord.usage.requestInput, requestID: response))
             } catch { diagnostics += 1 }
         }
         return ScanResult(events: events, diagnostics: diagnostics, fileCount: 1)

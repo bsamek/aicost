@@ -15,10 +15,11 @@ public struct OpenCodeTokenUsage: Equatable, Sendable {
 
 struct OpenCodeRecord {
     var event: UsageEvent
+    let usage: OpenCodeTokenUsage
     let created: Int64
     let completed: Int64
     var copyKey: String {
-        "\(created)/\(completed)/\(event.openCodeProvider ?? "")/\(event.model ?? "")/\(event.openCodeUsage!.fingerprint)"
+        "\(created)/\(completed)/\(event.provider ?? "")/\(event.model ?? "")/\(usage.fingerprint)"
     }
 }
 
@@ -88,17 +89,13 @@ public enum OpenCodeSessionParser {
         if provider?.isEmpty != false || modelID?.isEmpty != false {
             issue = "OpenCode provider/model unavailable"
         }
-        var event = UsageEvent(
+        let event = UsageEvent(
             identity: "opencode:\(id)", sessionID: sessionID,
             timestamp: Date(timeIntervalSince1970: Double(created) / 1000), model: modelID,
-            usage: TokenUsage(
-                input: usage.requestInput, cached: read, writes: write,
-                output: usage.billableOutput, reasoning: reasoning),
-            requestInput: usage.requestInput, issue: issue)
-        event.openCodeUsage = usage
-        event.openCodeProvider = provider
+            usage: .openCode(usage, provider: provider), requestInput: usage.requestInput,
+            issue: issue)
         return (
-            OpenCodeRecord(event: event, created: created, completed: completed),
+            OpenCodeRecord(event: event, usage: usage, created: created, completed: completed),
             issue == nil ? 0 : 1
         )
     }

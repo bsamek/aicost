@@ -136,21 +136,24 @@ public struct PricingCatalog: Sendable {
     public func cost(for event: UsageEvent) -> CostResult {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
         if let issue = event.issue { return unpriced(issue) }
-        if let usage = event.piUsage { return piCost(for: event, usage: usage) }
-        if let usage = event.claudeUsage { return claudeCost(for: event, usage: usage) }
-        if let usage = event.openCodeUsage {
+        let usage: TokenUsage
+        switch event.usage {
+        case .pi(let usage, let provider):
+            return piCost(for: event, usage: usage, provider: provider)
+        case .claude(let usage): return claudeCost(for: event, usage: usage)
+        case .openCode(let usage, let provider):
             guard let openCodePricing else {
                 return unpriced("OpenCode pricing catalog unavailable")
             }
-            return openCodePricing.cost(for: event, usage: usage)
+            return openCodePricing.cost(for: event, usage: usage, provider: provider)
+        case .codex(let codex): usage = codex
         }
-        guard event.usage.isValid else { return unpriced("Invalid token counts") }
+        guard usage.isValid else { return unpriced("Invalid token counts") }
         guard let model = event.model,
             let modelRates = apiModels["openai/" + model]
                 ?? (model.hasPrefix("claude-") ? nil : models[model])
         else { return unpriced("Model rate unavailable") }
         if let issue = modelRates.issue { return unpriced(issue) }
-        let usage = event.usage
         // Available local samples have zero writes. Do not assume whether a future
         // nonzero write count is included in input until that schema is verified.
         guard usage.writes == 0 else { return unpriced("Cache-write accounting unavailable") }
@@ -171,10 +174,11 @@ public struct PricingCatalog: Sendable {
                 + Decimal(usage.output) * rates.output) / 1_000_000
         return CostResult(usd: amount, reason: nil)
     }
-    private func piCost(for event: UsageEvent, usage: PiTokenUsage) -> CostResult {
+    private func piCost(for event: UsageEvent, usage: PiTokenUsage, provider: String?) -> CostResult
+    {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
         guard usage.isValid else { return unpriced("Invalid Pi token counts") }
-        guard let provider = event.piProvider, let model = event.model else {
+        guard let provider, let model = event.model else {
             return unpriced("Pi provider/model unavailable")
         }
         let modelRates: ModelRates?

@@ -21,7 +21,7 @@ struct CodexParserTests {
                 meta("s"), usage(100), usage(150, second: 2, lastInput: 50),
                 usage(100), usage(200, second: 3, lastInput: 50),
             ]), fileID: "f")
-        #expect(result.events.map(\.usage.input) == [100, 50, 50])
+        #expect(result.events.map(\.codexUsage?.input) == [100, 50, 50])
     }
     @Test func repeatedSnapshotsAndModelChanges() {
         let data = fixture([
@@ -33,7 +33,7 @@ struct CodexParserTests {
         ])
         let result = CodexSessionParser.parse(data: data, fileID: "file")
         #expect(result.events.count == 2)
-        #expect(result.events.map(\.usage.input) == [100, 50])
+        #expect(result.events.map(\.codexUsage?.input) == [100, 50])
         #expect(result.events.map(\.model) == ["gpt-6.1-sol", "gpt-6-astra"])
         #expect(result.events.last?.requestInput == 50)
     }
@@ -41,7 +41,7 @@ struct CodexParserTests {
     @Test func counterReset() {
         let result = CodexSessionParser.parse(
             data: fixture([meta("s"), usage(100), usage(20, second: 2)]), fileID: "f")
-        #expect(result.events.map(\.usage.input) == [100, 20])
+        #expect(result.events.map(\.codexUsage?.input) == [100, 20])
         #expect(result.events.first?.model == nil)
     }
 
@@ -51,7 +51,7 @@ struct CodexParserTests {
             + Data("bad json\n{\"unfinished\":".utf8)
         let result = CodexSessionParser.parse(data: data, fileID: "f")
         #expect(result.events.count == 1)
-        #expect(result.events.first?.usage.input == 100)
+        #expect(result.events.first?.codexUsage?.input == 100)
         #expect(result.diagnostics == 2)
     }
 
@@ -67,7 +67,7 @@ struct CodexParserTests {
     @Test func accumulatedDeltaHasNoInventedRequestContext() {
         let result = CodexSessionParser.parse(
             data: fixture([meta("s"), usage(300_000, lastInput: 150_000)]), fileID: "f")
-        #expect(result.events.first?.usage.input == 300_000)
+        #expect(result.events.first?.codexUsage?.input == 300_000)
         #expect(result.events.first?.requestInput == nil)
     }
 }

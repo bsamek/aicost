@@ -8,7 +8,7 @@ struct PiTests {
         let scan = PiSessionParser.parse(data: piData(piFixture()))
         let event = try #require(scan.events.first)
         #expect(event.model == "gpt-6.1-sol")
-        #expect(event.piProvider == "openai-codex")
+        #expect(event.provider == "openai-codex")
         #expect(event.requestInput == 1300)
         #expect(try PricingCatalog.load().cost(for: event).usd == Decimal(string: "0.00427"))
         #expect(scan.diagnostics == 0)
@@ -104,7 +104,7 @@ struct PiTests {
             #expect(scan.diagnostics > 0)
             #expect(
                 try PricingCatalog.load().cost(
-                    for: scan.events.first { $0.piProvider == "openai-codex" }!
+                    for: scan.events.first { $0.provider == "openai-codex" }!
                 ).usd == nil)
         }
     }

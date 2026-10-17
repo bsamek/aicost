@@ -129,7 +129,7 @@ struct CostPanelContent: View {
             return "OpenAI · " + displayModel(String(model.dropFirst("openai/".count)))
         }
         if model.hasPrefix("anthropic/") {
-            return "Pi · " + displayModel(String(model.dropFirst("anthropic/".count)))
+            return "Anthropic · " + displayModel(String(model.dropFirst("anthropic/".count)))
         }
         return switch model {
         case "fireworks/accounts/fireworks/models/deepseek-v4p1-flash":

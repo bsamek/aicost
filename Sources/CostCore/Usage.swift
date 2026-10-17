@@ -52,23 +52,26 @@ public struct TokenUsage: Equatable, Sendable {
     }
 }
 
+/// Each agent records token categories with its own semantics. Pricing keeps them apart.
+public enum ProviderUsage: Equatable, Sendable {
+    case codex(TokenUsage)
+    case claude(ClaudeTokenUsage)
+    case pi(PiTokenUsage, provider: String?)
+    case openCode(OpenCodeTokenUsage, provider: String?)
+}
+
 public struct UsageEvent: Sendable {
-    public var piUsage: PiTokenUsage? = nil
-    public var piProvider: String? = nil
-    public var claudeUsage: ClaudeTokenUsage? = nil
-    public var openCodeUsage: OpenCodeTokenUsage? = nil
-    public var openCodeProvider: String? = nil
-    public var requestID: String? = nil
     public var identity: String
     public var sessionID: String
     public var timestamp: Date
     public var model: String?
-    public var usage: TokenUsage
+    public var usage: ProviderUsage
     public var requestInput: Int64?
     public var issue: String?
+    public var requestID: String?
     public init(
-        identity: String, sessionID: String, timestamp: Date, model: String?, usage: TokenUsage,
-        requestInput: Int64?, issue: String? = nil
+        identity: String, sessionID: String, timestamp: Date, model: String?,
+        usage: ProviderUsage, requestInput: Int64?, issue: String? = nil, requestID: String? = nil
     ) {
         self.identity = identity
         self.sessionID = sessionID
@@ -77,6 +80,14 @@ public struct UsageEvent: Sendable {
         self.usage = usage
         self.requestInput = requestInput
         self.issue = issue
+        self.requestID = requestID
+    }
+    /// The serving provider recorded by agents that route to several providers.
+    public var provider: String? {
+        switch usage {
+        case .pi(_, let provider), .openCode(_, let provider): provider
+        case .codex, .claude: nil
+        }
     }
 }
 public struct ParsedSession: Sendable {

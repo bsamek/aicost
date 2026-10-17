@@ -98,7 +98,7 @@ struct OpenCodeTests {
                 OpenCodeSessionParser.parse(
                     data: Data(data.utf8), id: "m", sessionID: "s", modern: false
                 ).events.first)
-            #expect(event.usage.output == output)
+            #expect(event.openCodeUsage?.billableOutput == output)
             #expect((try PricingCatalog.load().cost(for: event).usd != nil) == priced)
         }
     }

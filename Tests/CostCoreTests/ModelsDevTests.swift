@@ -20,19 +20,17 @@ struct ModelsDevTests {
 
     @Test func apiKeepsExactProvidersAndAddsModelsWithoutGuessing() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
-        var event = testEvent(model: "new-model", usage: TokenUsage(input: 1_000))
-        event.openCodeUsage = OpenCodeTokenUsage(
+        let usage = OpenCodeTokenUsage(
             input: 1_000, cacheRead: 0, cacheWrite: 0, output: 0, reasoning: 0)
-        event.openCodeProvider = "example"
-        #expect(pricing.cost(for: event).usd == Decimal(string: "0.007"))
-        event.openCodeProvider = "custom"
-        #expect(pricing.cost(for: event).usd == nil)
-        event.openCodeProvider = "example"
-        event.model = "free-model"
-        #expect(pricing.cost(for: event).usd == 0)
-        event.model = "gpt-6.1-sol"
-        event.openCodeProvider = "opencode"
-        #expect(pricing.cost(for: event).usd == Decimal(string: "0.004"))
+        func cost(_ provider: String, _ model: String) -> Decimal? {
+            var event = testEvent(model: model)
+            event.usage = .openCode(usage, provider: provider)
+            return pricing.cost(for: event).usd
+        }
+        #expect(cost("example", "new-model") == Decimal(string: "0.007"))
+        #expect(cost("custom", "new-model") == nil)
+        #expect(cost("example", "free-model") == 0)
+        #expect(cost("opencode", "gpt-6.1-sol") == Decimal(string: "0.004"))
         // A missing API entry still uses an exact bundled rate.
         #expect(pricing.cost(for: testEvent(model: "gpt-4.1")).usd != nil)
     }
@@ -40,13 +38,14 @@ struct ModelsDevTests {
     @Test func claudeRetainsDurationRatesAndRejectsUnknownHourRates() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
         var event = testEvent(model: "claude-sonnet-5-5")
-        event.claudeUsage = try JSONDecoder().decode(
-            ClaudeTokenUsage.self,
-            from: Data(
-                """
-                {"input_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":100000,
-                 "output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":100000}}
-                """.utf8))
+        event.usage = .claude(
+            try JSONDecoder().decode(
+                ClaudeTokenUsage.self,
+                from: Data(
+                    """
+                    {"input_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":100000,
+                     "output_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":100000}}
+                    """.utf8)))
         #expect(pricing.cost(for: event).usd == Decimal(string: "0.4"))
         event.model = "claude-new"
         #expect(pricing.cost(for: event).usd == nil)
@@ -55,15 +54,15 @@ struct ModelsDevTests {
     @Test func bundledFallbackDoesNotBorrowAnotherProvidersModel() throws {
         let pricing = try PricingCatalog.load(modelsDevData: apiFixture(), fetchedAt: apiDate)
         var event = testEvent(model: "gpt-6.1-sol")
-        event.claudeUsage = try JSONDecoder().decode(
-            ClaudeTokenUsage.self,
-            from: Data(
-                """
-                {"input_tokens":1000,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}
-                """.utf8))
+        event.usage = .claude(
+            try JSONDecoder().decode(
+                ClaudeTokenUsage.self,
+                from: Data(
+                    """
+                    {"input_tokens":1000,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"output_tokens":0}
+                    """.utf8)))
         #expect(pricing.cost(for: event).usd == nil)
-        event.claudeUsage = nil
-        event.model = "claude-sonnet-5-5"
+        event = testEvent(model: "claude-sonnet-5-5")
         #expect(pricing.cost(for: event).usd == nil)
     }
 
@@ -98,11 +97,11 @@ struct ModelsDevTests {
         let pricing = try PricingCatalog.load(modelsDevData: data, fetchedAt: apiDate)
         var event = testEvent(model: "gpt-6.1-sol", usage: TokenUsage(input: 1_000, cached: 500))
         #expect(pricing.cost(for: event).reason == "Cached-input rate unavailable")
-        event.openCodeUsage = OpenCodeTokenUsage(
+        let usage = OpenCodeTokenUsage(
             input: 1_000, cacheRead: 0, cacheWrite: 0, output: 20, reasoning: 10)
-        event.openCodeProvider = "opencode"
+        event.usage = .openCode(usage, provider: "opencode")
         #expect(pricing.cost(for: event).reason == "Separate reasoning-token rate unsupported")
-        event.openCodeProvider = "openrouter"
+        event.usage = .openCode(usage, provider: "openrouter")
         #expect(pricing.cost(for: event).usd == nil)
     }
 

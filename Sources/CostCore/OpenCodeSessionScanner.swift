@@ -93,9 +93,8 @@ public final class OpenCodeSessionScanner {
                 diagnostics += parsed.diagnostics
                 guard let record = parsed.record else { continue }
                 if var original = records[row[0]] {
-                    if original.event.openCodeUsage != record.event.openCodeUsage
+                    if original.event.usage != record.event.usage
                         || original.event.model != record.event.model
-                        || original.event.openCodeProvider != record.event.openCodeProvider
                         || original.created != record.created
                         || original.completed != record.completed
                     {

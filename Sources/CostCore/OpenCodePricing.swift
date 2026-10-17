@@ -60,9 +60,9 @@ struct OpenCodePricingCatalog: Sendable {
         guard let url else { throw PricingError.missingCatalog }
         return try Data(contentsOf: url)
     }
-    func cost(for event: UsageEvent, usage: OpenCodeTokenUsage) -> CostResult {
+    func cost(for event: UsageEvent, usage: OpenCodeTokenUsage, provider: String?) -> CostResult {
         func unpriced(_ reason: String) -> CostResult { CostResult(usd: nil, reason: reason) }
-        guard let provider = event.openCodeProvider, let model = event.model else {
+        guard let provider, let model = event.model else {
             return unpriced("OpenCode provider/model unavailable")
         }
         guard let modelRates = models[provider + "/" + model] else {

@@ -83,8 +83,7 @@ public final class PiSessionScanner {
             let requestConflict =
                 original.requestID != nil && event.requestID != nil
                 && original.requestID != event.requestID
-            if original.piUsage != event.piUsage || original.model != event.model || requestConflict
-            {
+            if original.usage != event.usage || original.model != event.model || requestConflict {
                 original.issue = "Conflicting Pi message usage"
                 diagnostics += 1
             }

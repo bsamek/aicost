@@ -16,7 +16,7 @@ struct CodexScannerTests {
                 usage(200, second: 3, lastInput: 50),
             ]), home, "sessions/a.jsonl")
         let result = try CodexSessionScanner().scan(home: home)
-        #expect(result.events.map(\.usage.input).reduce(0, +) == 200)
+        #expect(result.events.compactMap(\.codexUsage?.input).reduce(0, +) == 200)
     }
 
     @Test func inheritedForkFillsParentSnapshotGapWithoutDoubleCounting() throws {
@@ -33,7 +33,8 @@ struct CodexScannerTests {
                 usage(250, second: 5, lastInput: 50),
             ]), home, "sessions/b.jsonl")
         #expect(
-            try CodexSessionScanner().scan(home: home).events.map(\.usage.input).reduce(0, +) == 250
+            try CodexSessionScanner().scan(home: home).events.compactMap(\.codexUsage?.input)
+                .reduce(0, +) == 250
         )
     }
     @Test func activeArchiveCopiesAndInheritedForkAreCountedOnce() throws {
@@ -48,7 +49,7 @@ struct CodexScannerTests {
         ])
         try write(fork, home, "sessions/child.jsonl")
         let result = try CodexSessionScanner().scan(home: home)
-        #expect(result.events.map(\.usage.input).reduce(0, +) == 150)
+        #expect(result.events.compactMap(\.codexUsage?.input).reduce(0, +) == 150)
         #expect(result.events.count == 2)
     }
 
@@ -66,7 +67,7 @@ struct CodexScannerTests {
         m["payload"] = payload
         try write(fixture([m, usage(20, second: 4)]), home, "sessions/c.jsonl")
         let result = try CodexSessionScanner().scan(home: home)
-        #expect(result.events.map(\.usage.input).reduce(0, +) == 160)
+        #expect(result.events.compactMap(\.codexUsage?.input).reduce(0, +) == 160)
         #expect(Set(result.events.map(\.sessionID)).count == 3)
     }
 
@@ -75,13 +76,13 @@ struct CodexScannerTests {
         defer { try? FileManager.default.removeItem(at: home) }
         let scanner = CodexSessionScanner()
         try write(fixture([meta("s"), usage(100)]), home, "sessions/a.jsonl")
-        #expect(try scanner.scan(home: home).events.first?.usage.input == 100)
+        #expect(try scanner.scan(home: home).events.first?.codexUsage?.input == 100)
         try write(
             fixture([meta("s"), usage(100), usage(150, second: 2, lastInput: 50)]), home,
             "sessions/a.jsonl")
         #expect(try scanner.scan(home: home).events.count == 2)
         try write(fixture([meta("s"), usage(20)]), home, "sessions/a.jsonl")
-        #expect(try scanner.scan(home: home).events.first?.usage.input == 20)
+        #expect(try scanner.scan(home: home).events.first?.codexUsage?.input == 20)
         try FileManager.default.removeItem(at: home.appendingPathComponent("sessions/a.jsonl"))
         #expect(try scanner.scan(home: home).events.isEmpty)
     }

@@ -83,7 +83,7 @@ public final class ClaudeSessionScanner {
             let requestConflict =
                 original.requestID != nil && event.requestID != nil
                 && original.requestID != event.requestID
-            if original.claudeUsage != event.claudeUsage || original.model != event.model
+            if original.usage != event.usage || original.model != event.model
                 || requestConflict
             {
                 original.issue = "Conflicting Claude message usage"

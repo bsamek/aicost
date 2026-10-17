@@ -100,7 +100,7 @@ public enum CodexSessionParser {
             events.append(
                 UsageEvent(
                     identity: record.identity, sessionID: session.id, timestamp: record.timestamp,
-                    model: record.model, usage: delta,
+                    model: record.model, usage: .codex(delta),
                     requestInput: record.last == delta ? record.last?.input : nil, issue: issue))
         }
         return events
