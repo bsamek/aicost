@@ -100,6 +100,18 @@ struct CodexScannerTests {
         #expect(throws: (any Error).self) { try CodexSessionScanner().scan(home: home) }
     }
 
+    @Test func invalidDeltaInCopiedFilesIsDiagnosedOnce() throws {
+        let home = try temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        // Cached input decreases while input grows, so the second delta is invalid.
+        let data = fixture([meta("s"), usage(100, cached: 50), usage(150, cached: 20, second: 2)])
+        try write(data, home, "sessions/a.jsonl")
+        try write(data, home, "archived_sessions/a.jsonl")
+        let result = try CodexSessionScanner().scan(home: home)
+        #expect(result.events.compactMap(\.codexUsage?.input) == [100])
+        #expect(result.diagnostics == 1)
+    }
+
     @Test func unresolvedForkBaselineIsFlagged() throws {
         let home = try temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }

@@ -1,7 +1,7 @@
 import Foundation
 
 public final class CodexSessionScanner {
-    private let logs = JSONLLogCache<ParsedSession>(agent: "Codex")
+    private let logs = JSONLLogCache<CodexSession>(agent: "Codex")
     public init() {}
 
     public func scan(home: URL) throws -> ScanResult {
@@ -10,7 +10,7 @@ public final class CodexSessionScanner {
         ) { data, url in CodexSessionParser.parse(data: data, fileID: url.lastPathComponent) }
         // Active and archived copies can have different intermediate snapshots.
         // Merge their raw counters before turning those counters into billable deltas.
-        var merged: [String: ParsedSession] = [:]
+        var merged: [String: CodexSession] = [:]
         sessions.sort { ($0.created ?? .distantPast, $0.id) < ($1.created ?? .distantPast, $1.id) }
         for session in sessions {
             if var existing = merged[session.id] {
@@ -30,17 +30,14 @@ public final class CodexSessionScanner {
                 while let parent = owner.parent, let created = owner.created,
                     snapshot.timestamp < created, visited.insert(parent).inserted
                 {
-                    var ancestor =
-                        merged[parent]
-                        ?? ParsedSession(
-                            id: parent, parent: nil, created: nil, events: [], diagnostics: 0)
+                    var ancestor = merged[parent] ?? CodexSession(id: parent)
                     ancestor.snapshots.append(snapshot)
                     merged[parent] = ancestor
                     owner = ancestor
                 }
             }
         }
-        var normalizationDiagnostics = 0
+        var diagnostics = sessions.reduce(0) { $0 + $1.diagnostics }
         let mergedSessions = merged.values.sorted {
             ($0.created ?? .distantPast, $0.id) < ($1.created ?? .distantPast, $1.id)
         }
@@ -62,8 +59,7 @@ public final class CodexSessionScanner {
         // Prefer original parent records to inherited copies for model attribution.
         for session in mergedSessions {
             let root = lineageRoot(session.id)
-            for event in CodexSessionParser.normalize(
-                session, diagnostics: &normalizationDiagnostics)
+            for event in CodexSessionParser.normalize(session, diagnostics: &diagnostics)
             where seen.insert(root + "|" + event.identity).inserted { events.append(event) }
         }
         events.sort {
@@ -71,7 +67,7 @@ public final class CodexSessionScanner {
         }
         return ScanResult(
             events: events,
-            diagnostics: max(normalizationDiagnostics, sessions.reduce(0) { $0 + $1.diagnostics }),
+            diagnostics: diagnostics,
             fileCount: sessions.count)
     }
 }

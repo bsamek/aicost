@@ -90,13 +90,13 @@ public struct UsageEvent: Sendable {
         }
     }
 }
-public struct ParsedSession: Sendable {
-    public var id: String
-    public var parent: String?
-    public var created: Date?
-    public var events: [UsageEvent]
-    public var diagnostics: Int
+/// One Codex thread's raw cumulative counters. Copies are merged before computing deltas.
+struct CodexSession: Sendable {
+    var id: String
+    var parent: String?
+    var created: Date?
     var snapshots: [UsageSnapshot] = []
+    var diagnostics = 0
 }
 struct UsageSnapshot: Sendable {
     var identity: String

@@ -1,10 +1,9 @@
 import CryptoKit
 import Foundation
 
-public enum CodexSessionParser {
-    public static func parse(data: Data, fileID: String) -> ParsedSession {
-        var result = ParsedSession(
-            id: fileID, parent: nil, created: nil, events: [], diagnostics: 0)
+enum CodexSessionParser {
+    static func parse(data: Data, fileID: String) -> CodexSession {
+        var result = CodexSession(id: fileID)
         var model: String?
         var sawMetadata = false
         let fractional = ISO8601DateFormatter()
@@ -66,14 +65,12 @@ public enum CodexSessionParser {
             default: break
             }
         }
-        let metadata = result
-        result.events = normalize(metadata, diagnostics: &result.diagnostics)
         return result
     }
 
     // Keep raw cumulative snapshots until copies have been merged. Endpoint
     // deduplication after computing per-file deltas cannot remove overlapping intervals.
-    static func normalize(_ session: ParsedSession, diagnostics: inout Int) -> [UsageEvent] {
+    static func normalize(_ session: CodexSession, diagnostics: inout Int) -> [UsageEvent] {
         var seen: Set<String> = []
         var previous = TokenUsage.zero
         var sawUsage = false
