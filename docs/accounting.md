@@ -10,7 +10,7 @@ Prices come from `https://models.dev/api.json`, refreshed in the background at m
 
 The bundled catalogs remain fallback rates for entries absent from the API and for first-run/offline use, with their source and verification date. An API entry replaces its full rate set; missing API cache fields are not filled with potentially stale bundled rates. Current Standard rates are applied to all displayed usage; this is not an exact historical bill, and refreshing rates can change historical totals. Context tiers use recorded request input counts and their explicit thresholds, including multiple tiers. Models with a distinct reasoning price are left unpriced because the local normalized accounting assumes reasoning is billed at the output rate.
 
-Models without published rates are excluded from the panel and dollar totals. The diagnostic report retains their details. Nonzero cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
+Models without published rates are excluded from dollar totals and shown in the panel as **Unpriced**. The diagnostic report retains their details. Nonzero cache-write records are also unpriced until their local count semantics can be verified. Missing cloud sessions and non-token tool charges are outside coverage. Your actual subscription payment is unaffected.
 
 ## Claude Code coverage
 
