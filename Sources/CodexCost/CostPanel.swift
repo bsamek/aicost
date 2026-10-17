@@ -111,29 +111,15 @@ struct CostPanelContent: View {
                 Text(dollars(value.total)).monospacedDigit()
                     .accessibilityLabel("\(title) total, \(dollars(value.total))")
             }.fontWeight(.semibold)
-            ForEach(value.displayedModels.filter { $0.pricedCount > 0 }) { row in
+            ForEach(PanelRow.rows(value)) { row in
                 HStack {
-                    Text(row.model)
+                    Text(row.name)
                     Spacer()
-                    Text(dollars(row.total)).monospacedDigit()
+                    Text(row.amount).monospacedDigit()
                 }
                 .foregroundStyle(.secondary)
-                .help(sourceBreakdown(row))
+                .help(row.detail)
             }
         }
-    }
-
-    /// Agents and serving providers stay out of the row and appear on hover.
-    private func sourceBreakdown(_ row: ModelCost) -> String {
-        var totals: [(source: String, total: Decimal)] = []
-        for source in row.sources where source.pricedCount > 0 {
-            let name = ModelNaming.source(source.model)
-            if let index = totals.firstIndex(where: { $0.source == name }) {
-                totals[index].total += source.total
-            } else {
-                totals.append((name, source.total))
-            }
-        }
-        return totals.map { "\($0.source): \(dollars($0.total))" }.joined(separator: "\n")
     }
 }

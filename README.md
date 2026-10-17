@@ -43,7 +43,7 @@ The build targets Apple Silicon (arm64) and ad-hoc signs the bundle locally. Kee
 
 ## Usage and log locations
 
-Open the app, then click its dollar total in the menu bar. Both periods sort models alphabetically by provider and then by model family, with newer numeric versions first within each family. The order does not depend on cost. Unknown providers and families appear last by model ID. Only models with priced usage appear in the panel; use the diagnostic report to inspect skipped or unpriced records.
+Open the app, then click its dollar total in the menu bar. Both periods sort models alphabetically by provider and then by model family, with newer numeric versions first within each family. The order does not depend on cost. Unknown providers and families appear last by model ID. Models without published rates appear as **Unpriced** and are excluded from totals; hover a row for its sources, or use the diagnostic report to inspect skipped or unpriced records.
 
 | Agent | Default local source | Override |
 | --- | --- | --- |

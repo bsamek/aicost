@@ -110,6 +110,9 @@ import Testing
                 total: Decimal(string: "57.03")!,
                 models: rows.map {
                     ModelCost(model: $0.0, total: Decimal(string: $0.1)!, pricedCount: 1)
-                }))
+                } + [
+                    ModelCost(
+                        model: "openrouter/deepseek/deepseek-v4.1-flash-1017", unpricedCount: 16)
+                ], unpricedCount: 16))
     }
 }
